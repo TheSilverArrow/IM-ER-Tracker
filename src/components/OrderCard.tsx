@@ -18,6 +18,9 @@ import {
   Sparkles,
   Loader2,
   Activity,
+  UserX,
+  VolumeX,
+  Volume2,
 } from 'lucide-react';
 
 interface Props {
@@ -26,6 +29,8 @@ interface Props {
   onToggleItem: (orderId: string, itemId: string, isCompleted: boolean) => Promise<void>;
   onCompleteAllItems: (orderId: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  isBlockedSender?: boolean;
+  onToggleBlockSender?: (senderName: string) => void;
 }
 
 export const OrderCard: React.FC<Props> = ({
@@ -34,6 +39,8 @@ export const OrderCard: React.FC<Props> = ({
   onToggleItem,
   onCompleteAllItems,
   onDelete,
+  isBlockedSender = false,
+  onToggleBlockSender,
 }) => {
   const [loadingStatus, setLoadingStatus] = useState<string | null>(null);
   const [loadingItemId, setLoadingItemId] = useState<string | null>(null);
@@ -149,10 +156,43 @@ export const OrderCard: React.FC<Props> = ({
           </div>
 
           {/* Ordered By */}
-          <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-            <UserCheck className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            <span className="text-slate-400">Ordered:</span>
-            <span className="font-bold truncate">{order.ordered_by}</span>
+          <div className="col-span-2 sm:col-span-1 flex items-center justify-between gap-1 text-slate-600 dark:text-slate-300">
+            <div className="flex items-center gap-1.5 truncate">
+              <UserCheck className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span className="text-slate-400">Ordered:</span>
+              <span className="font-bold truncate">{order.ordered_by}</span>
+            </div>
+            {onToggleBlockSender && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleBlockSender(order.ordered_by);
+                }}
+                className={`px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 transition-all shrink-0 ${
+                  isBlockedSender
+                    ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                    : 'text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40'
+                }`}
+                title={
+                  isBlockedSender
+                    ? `Click to allow messages from ${order.ordered_by}`
+                    : `Click to mute/block messages from ${order.ordered_by}`
+                }
+              >
+                {isBlockedSender ? (
+                  <>
+                    <VolumeX className="w-3 h-3 text-rose-500" />
+                    <span>Muted</span>
+                  </>
+                ) : (
+                  <>
+                    <UserX className="w-3 h-3" />
+                    <span className="hidden group-hover:inline">Mute Sender</span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
 
           {/* Age / Sex */}

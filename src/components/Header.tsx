@@ -1,25 +1,31 @@
-import React from 'react';
-import { Stethoscope, Plus, Bot, Code2, RefreshCw, Radio } from 'lucide-react';
+import React, { useState } from 'react';
+import { Stethoscope, Plus, Bot, Code2, RefreshCw, Radio, UserX, ChevronDown, Wrench } from 'lucide-react';
 
 interface Props {
   onOpenNewOrder: () => void;
   onOpenSimulator: () => void;
   onOpenWebhookDocs: () => void;
+  onOpenManageSenders: () => void;
   onRefresh: () => void;
   isRefreshing: boolean;
   autoRefreshEnabled: boolean;
   onToggleAutoRefresh: () => void;
+  blockedSendersCount?: number;
 }
 
 export const Header: React.FC<Props> = ({
   onOpenNewOrder,
   onOpenSimulator,
   onOpenWebhookDocs,
+  onOpenManageSenders,
   onRefresh,
   isRefreshing,
   autoRefreshEnabled,
   onToggleAutoRefresh,
+  blockedSendersCount = 0,
 }) => {
+  const [isToolsDropdownOpen, setIsToolsDropdownOpen] = useState(false);
+
   return (
     <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-b border-slate-200 dark:border-slate-800 shadow-xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
@@ -69,24 +75,58 @@ export const Header: React.FC<Props> = ({
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           </button>
 
-          {/* Webhook Simulator trigger */}
-          <button
-            onClick={onOpenSimulator}
-            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 transition-colors"
-          >
-            <Bot className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-            <span>Simulate Telegram</span>
-          </button>
+          {/* Unified Single Tools & Rules Button */}
+          <div className="relative">
+            <button
+              onClick={() => setIsToolsDropdownOpen(!isToolsDropdownOpen)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition-all"
+            >
+              <Wrench className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <span>Tools & Rules</span>
+              {blockedSendersCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-rose-600 text-white font-bold text-[10px]">
+                  {blockedSendersCount}
+                </span>
+              )}
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isToolsDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
 
-          {/* Webhook API Docs */}
-          <button
-            onClick={onOpenWebhookDocs}
-            className="hidden lg:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 transition-colors"
-            title="View Webhook API endpoint"
-          >
-            <Code2 className="w-4 h-4" />
-            <span>API Docs</span>
-          </button>
+            {isToolsDropdownOpen && (
+              <div
+                className="absolute right-0 mt-2 w-56 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl py-2 z-50 animate-fadeIn"
+                onClick={() => setIsToolsDropdownOpen(false)}
+              >
+                <button
+                  onClick={onOpenManageSenders}
+                  className="w-full flex items-center justify-between px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left"
+                >
+                  <div className="flex items-center gap-2">
+                    <UserX className="w-4 h-4 text-rose-500" />
+                    <span>Muted Senders</span>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 font-bold">
+                    {blockedSendersCount}
+                  </span>
+                </button>
+
+                <button
+                  onClick={onOpenSimulator}
+                  className="w-full flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left"
+                >
+                  <Bot className="w-4 h-4 text-indigo-500" />
+                  <span>Simulate Telegram Order</span>
+                </button>
+
+                <button
+                  onClick={onOpenWebhookDocs}
+                  className="w-full flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left"
+                >
+                  <Code2 className="w-4 h-4 text-emerald-500" />
+                  <span>Webhook API Docs</span>
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* New Order primary button */}
           <button

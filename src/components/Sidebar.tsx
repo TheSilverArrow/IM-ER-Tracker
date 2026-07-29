@@ -9,6 +9,7 @@ import {
   Code2,
   Building2,
   RotateCcw,
+  UserX,
 } from 'lucide-react';
 
 interface Props {
@@ -16,9 +17,11 @@ interface Props {
   onFilterChange: (newFilters: Partial<FilterState>) => void;
   onOpenSimulator: () => void;
   onOpenWebhookDocs: () => void;
+  onOpenManageSenders: () => void;
   onResetSeedData: () => void;
   totalOrdersCount: number;
   pendingCount: number;
+  blockedSendersCount: number;
 }
 
 export const Sidebar: React.FC<Props> = ({
@@ -26,9 +29,11 @@ export const Sidebar: React.FC<Props> = ({
   onFilterChange,
   onOpenSimulator,
   onOpenWebhookDocs,
+  onOpenManageSenders,
   onResetSeedData,
   totalOrdersCount,
   pendingCount,
+  blockedSendersCount,
 }) => {
   return (
     <aside className="hidden lg:flex flex-col w-64 shrink-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 p-4 min-h-[calc(100vh-61px)]">
@@ -123,9 +128,22 @@ export const Sidebar: React.FC<Props> = ({
         {/* Integration Tools */}
         <div>
           <h3 className="px-2 text-xs font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
-            Integration Tools
+            Integration & Sender Rules
           </h3>
           <div className="space-y-1.5">
+            <button
+              onClick={onOpenManageSenders}
+              className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:hover:bg-rose-900/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <UserX className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                <span>Muted Senders</span>
+              </div>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-200 dark:bg-rose-900 text-rose-900 dark:text-rose-200 font-extrabold">
+                {blockedSendersCount}
+              </span>
+            </button>
+
             <button
               onClick={onOpenSimulator}
               className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 transition-colors"

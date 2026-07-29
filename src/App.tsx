@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { ClinicalOrder, FilterState, OrderStatus, SummaryStats } from './types';
 import { Header } from './components/Header';
 import { SummaryStatsWidget } from './components/SummaryStats';
-import { PendingQueueTriage } from './components/PendingQueueTriage';
 import { MobileFilters } from './components/MobileFilters';
 import { OrderCard } from './components/OrderCard';
 import { Sidebar } from './components/Sidebar';
@@ -10,7 +9,9 @@ import { BottomNav } from './components/BottomNav';
 import { NewOrderModal } from './components/NewOrderModal';
 import { WebhookSimulatorModal } from './components/WebhookSimulatorModal';
 import { WebhookDocsModal } from './components/WebhookDocsModal';
+import { ManageBlockedSendersModal } from './components/ManageBlockedSendersModal';
 import { orderService } from './services/orderService';
+import { getBlockedSenders, saveBlockedSenders, isSenderBlocked } from './services/senderService';
 import { ClipboardCheck, RefreshCw, AlertCircle, Sparkles, Filter } from 'lucide-react';
 
 export default function App() {
@@ -20,10 +21,15 @@ export default function App() {
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Muted Senders State
+  const [blockedSenders, setBlockedSenders] = useState<string[]>(() => getBlockedSenders());
+  const [showBlockedOrders, setShowBlockedOrders] = useState(false);
+
   // Modals state
   const [isNewOrderOpen, setIsNewOrderOpen] = useState(false);
   const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
   const [isWebhookDocsOpen, setIsWebhookDocsOpen] = useState(false);
+  const [isManageSendersOpen, setIsManageSendersOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<'dashboard' | 'simulator' | 'docs'>('dashboard');
 
   // Filters State
@@ -35,6 +41,34 @@ export default function App() {
 
   // Toast alert on new incoming orders
   const [newOrderToast, setNewOrderToast] = useState<string | null>(null);
+
+  // Block sender helpers
+  const handleBlockSender = (senderName: string) => {
+    if (!senderName) return;
+    const clean = senderName.trim();
+    if (blockedSenders.some((s) => s.toLowerCase() === clean.toLowerCase())) return;
+    const updated = [...blockedSenders, clean];
+    setBlockedSenders(updated);
+    saveBlockedSenders(updated);
+    triggerToast(`Muted order messages from "${clean}"`);
+  };
+
+  const handleUnblockSender = (senderName: string) => {
+    const updated = blockedSenders.filter(
+      (s) => s.toLowerCase().trim() !== senderName.toLowerCase().trim()
+    );
+    setBlockedSenders(updated);
+    saveBlockedSenders(updated);
+    triggerToast(`Allowed messages from "${senderName}" again`);
+  };
+
+  const handleToggleBlockSender = (senderName: string) => {
+    if (isSenderBlocked(senderName, blockedSenders)) {
+      handleUnblockSender(senderName);
+    } else {
+      handleBlockSender(senderName);
+    }
+  };
 
   // Fetch orders from service (supports both backend API & GitHub Pages static mode)
   const fetchOrders = useCallback(async (showIndicator = false) => {
@@ -181,6 +215,11 @@ export default function App() {
   const filteredOrders = useMemo(() => {
     return orders
       .filter((o) => {
+        // Muted sender filter
+        if (!showBlockedOrders && isSenderBlocked(o.ordered_by, blockedSenders)) {
+          return false;
+        }
+
         // Search query filter
         if (filters.searchQuery.trim()) {
           const q = filters.searchQuery.toLowerCase().trim();
@@ -210,7 +249,7 @@ export default function App() {
         }
         return b.created_at - a.created_at;
       });
-  }, [orders, filters]);
+  }, [orders, filters, blockedSenders, showBlockedOrders]);
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans antialiased pb-20 lg:pb-8">
@@ -227,10 +266,12 @@ export default function App() {
         onOpenNewOrder={() => setIsNewOrderOpen(true)}
         onOpenSimulator={() => setIsSimulatorOpen(true)}
         onOpenWebhookDocs={() => setIsWebhookDocsOpen(true)}
+        onOpenManageSenders={() => setIsManageSendersOpen(true)}
         onRefresh={() => fetchOrders(true)}
         isRefreshing={isRefreshing}
         autoRefreshEnabled={autoRefreshEnabled}
         onToggleAutoRefresh={() => setAutoRefreshEnabled(!autoRefreshEnabled)}
+        blockedSendersCount={blockedSenders.length}
       />
 
       {/* Main Content Layout */}
@@ -241,9 +282,11 @@ export default function App() {
           onFilterChange={handleFilterChange}
           onOpenSimulator={() => setIsSimulatorOpen(true)}
           onOpenWebhookDocs={() => setIsWebhookDocsOpen(true)}
+          onOpenManageSenders={() => setIsManageSendersOpen(true)}
           onResetSeedData={handleResetSeedData}
           totalOrdersCount={orders.length}
           pendingCount={summaryStats.totalPending}
+          blockedSendersCount={blockedSenders.length}
         />
 
         {/* Main Dashboard Panel */}
@@ -253,13 +296,6 @@ export default function App() {
             stats={summaryStats}
             activeStatus={filters.status}
             onSelectStatus={(st) => handleFilterChange({ status: st as OrderStatus | 'All' })}
-          />
-
-          {/* Dedicated Pending Queue Triage Section */}
-          <PendingQueueTriage
-            pendingOrders={pendingOrders}
-            onUpdateStatus={handleUpdateStatus}
-            onDelete={handleDeleteOrder}
           />
 
           {/* Mobile Search & Filter Bar */}
@@ -360,6 +396,8 @@ export default function App() {
                   onToggleItem={handleToggleItem}
                   onCompleteAllItems={handleCompleteAllItems}
                   onDelete={handleDeleteOrder}
+                  isBlockedSender={isSenderBlocked(order.ordered_by, blockedSenders)}
+                  onToggleBlockSender={handleToggleBlockSender}
                 />
               ))}
             </div>
@@ -395,6 +433,16 @@ export default function App() {
       <WebhookDocsModal
         isOpen={isWebhookDocsOpen}
         onClose={() => setIsWebhookDocsOpen(false)}
+      />
+
+      <ManageBlockedSendersModal
+        isOpen={isManageSendersOpen}
+        onClose={() => setIsManageSendersOpen(false)}
+        blockedSenders={blockedSenders}
+        onBlockSender={handleBlockSender}
+        onUnblockSender={handleUnblockSender}
+        showBlockedOrders={showBlockedOrders}
+        onToggleShowBlockedOrders={setShowBlockedOrders}
       />
     </div>
   );
