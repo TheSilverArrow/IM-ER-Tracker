@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { getApiUrl } from '../services/orderService';
 import { X, Code2, Copy, Check, Terminal, ExternalLink } from 'lucide-react';
 
 interface Props {
@@ -12,8 +13,7 @@ export const WebhookDocsModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
   if (!isOpen) return null;
 
-  const appUrl = typeof window !== 'undefined' ? window.location.origin : 'https://your-hospital-app.run.app';
-  const webhookEndpoint = `${appUrl}/api/orders`;
+  const webhookEndpoint = getApiUrl('/api/orders');
 
   const curlCommand = `curl -X POST "${webhookEndpoint}" \\
   -H "Content-Type: application/json" \\

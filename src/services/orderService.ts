@@ -2,6 +2,28 @@ import { ClinicalOrder, OrderItem, OrderStatus } from '../types';
 import { parseTelegramTextClientSide } from '../utils/parser';
 
 const STORAGE_KEY = 'clinical_orders_gh_pages_v1';
+export const DEFAULT_VERCEL_API_URL = 'https://im-er-tracker-4akzsrg8x-silver-arrow.vercel.app';
+
+const metaEnv = (import.meta as unknown as { env?: Record<string, string> }).env;
+
+export function getApiUrl(path: string): string {
+  // If explicitly set via environment variable
+  if (metaEnv?.VITE_API_BASE_URL) {
+    const base = metaEnv.VITE_API_BASE_URL.replace(/\/+$/, '');
+    return `${base}${path}`;
+  }
+
+  // If running locally or on the Cloud Run development environment, relative paths work
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1' || host.includes('run.app')) {
+      return path;
+    }
+  }
+
+  // Default to Vercel API backend for GitHub Pages or static deployments
+  return `${DEFAULT_VERCEL_API_URL}${path}`;
+}
 
 // Initial sample orders for fallback offline / static mode
 const initialSampleOrders: ClinicalOrder[] = [
@@ -87,7 +109,7 @@ function saveLocalOrders(orders: ClinicalOrder[]) {
 export const orderService = {
   async getOrders(): Promise<ClinicalOrder[]> {
     try {
-      const res = await fetch('/api/orders');
+      const res = await fetch(getApiUrl('/api/orders'));
       if (res.ok) {
         const data = await res.json();
         if (data.success && Array.isArray(data.orders)) {
@@ -102,7 +124,7 @@ export const orderService = {
 
   async createOrderFromText(rawText: string): Promise<ClinicalOrder> {
     try {
-      const res = await fetch('/api/orders', {
+      const res = await fetch(getApiUrl('/api/orders'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: rawText }),
@@ -147,7 +169,7 @@ export const orderService = {
 
   async updateStatus(id: string, status: OrderStatus): Promise<ClinicalOrder> {
     try {
-      const res = await fetch(`/api/orders/${id}`, {
+      const res = await fetch(getApiUrl(`/api/orders/${id}`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
@@ -176,7 +198,7 @@ export const orderService = {
 
   async toggleItem(orderId: string, itemId: string, isCompleted: boolean): Promise<ClinicalOrder> {
     try {
-      const res = await fetch(`/api/orders/${orderId}/items/${itemId}`, {
+      const res = await fetch(getApiUrl(`/api/orders/${orderId}/items/${itemId}`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_completed: isCompleted }),
@@ -220,7 +242,7 @@ export const orderService = {
 
   async completeAllItems(orderId: string): Promise<ClinicalOrder> {
     try {
-      const res = await fetch(`/api/orders/${orderId}/complete-all`, { method: 'POST' });
+      const res = await fetch(getApiUrl(`/api/orders/${orderId}/complete-all`), { method: 'POST' });
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.order) return data.order;
@@ -250,7 +272,7 @@ export const orderService = {
 
   async deleteOrder(id: string): Promise<void> {
     try {
-      const res = await fetch(`/api/orders/${id}`, { method: 'DELETE' });
+      const res = await fetch(getApiUrl(`/api/orders/${id}`), { method: 'DELETE' });
       if (res.ok) return;
     } catch {
       // Fallback
@@ -263,7 +285,7 @@ export const orderService = {
 
   async resetSeedData(): Promise<ClinicalOrder[]> {
     try {
-      const res = await fetch('/api/orders/seed', { method: 'POST' });
+      const res = await fetch(getApiUrl('/api/orders/seed'), { method: 'POST' });
       if (res.ok) {
         const data = await res.json();
         if (data.success && Array.isArray(data.orders)) return data.orders;
@@ -278,7 +300,7 @@ export const orderService = {
 
   async simulateWebhook(simText?: string): Promise<{ simulated_text: string; order: ClinicalOrder }> {
     try {
-      const res = await fetch('/api/orders/simulate', {
+      const res = await fetch(getApiUrl('/api/orders/simulate'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: simText }),
