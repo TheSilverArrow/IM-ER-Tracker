@@ -10,7 +10,9 @@ import { NewOrderModal } from './components/NewOrderModal';
 import { WebhookSimulatorModal } from './components/WebhookSimulatorModal';
 import { WebhookDocsModal } from './components/WebhookDocsModal';
 import { ManageBlockedSendersModal } from './components/ManageBlockedSendersModal';
+import { SupabaseSettingsModal } from './components/SupabaseSettingsModal';
 import { orderService } from './services/orderService';
+import { subscribeToSupabaseRealtime } from './services/supabaseOrderService';
 import { getBlockedSenders, saveBlockedSenders, isSenderBlocked } from './services/senderService';
 import { ClipboardCheck, RefreshCw, AlertCircle, Sparkles, Filter } from 'lucide-react';
 
@@ -30,6 +32,7 @@ export default function App() {
   const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
   const [isWebhookDocsOpen, setIsWebhookDocsOpen] = useState(false);
   const [isManageSendersOpen, setIsManageSendersOpen] = useState(false);
+  const [isSupabaseSettingsOpen, setIsSupabaseSettingsOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<'dashboard' | 'simulator' | 'docs'>('dashboard');
 
   // Filters State
@@ -89,6 +92,30 @@ export default function App() {
   // Initial load
   useEffect(() => {
     fetchOrders();
+
+    // 2. Real-time listener for new orders sent from Telegram -> Render -> Supabase
+    const unsubscribe = subscribeToSupabaseRealtime({
+      onInsert: (newOrder) => {
+        console.log('📥 New Real-Time Order Received via Supabase:', newOrder);
+        setOrders((prev) => {
+          if (prev.some((o) => o.id === newOrder.id)) return prev;
+          return [newOrder, ...prev];
+        });
+        triggerToast(`New real-time order received for ${newOrder.patient_name}`);
+      },
+      onUpdate: (updatedOrder) => {
+        setOrders((prev) =>
+          prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o))
+        );
+      },
+      onDelete: (deletedId) => {
+        setOrders((prev) => prev.filter((o) => o.id !== deletedId));
+      },
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, [fetchOrders]);
 
   // Live Sync / Polling interval (5 seconds)
@@ -267,6 +294,7 @@ export default function App() {
         onOpenSimulator={() => setIsSimulatorOpen(true)}
         onOpenWebhookDocs={() => setIsWebhookDocsOpen(true)}
         onOpenManageSenders={() => setIsManageSendersOpen(true)}
+        onOpenSupabaseSettings={() => setIsSupabaseSettingsOpen(true)}
         onRefresh={() => fetchOrders(true)}
         isRefreshing={isRefreshing}
         autoRefreshEnabled={autoRefreshEnabled}
@@ -443,6 +471,12 @@ export default function App() {
         onUnblockSender={handleUnblockSender}
         showBlockedOrders={showBlockedOrders}
         onToggleShowBlockedOrders={setShowBlockedOrders}
+      />
+
+      <SupabaseSettingsModal
+        isOpen={isSupabaseSettingsOpen}
+        onClose={() => setIsSupabaseSettingsOpen(false)}
+        onConnected={() => fetchOrders(true)}
       />
     </div>
   );

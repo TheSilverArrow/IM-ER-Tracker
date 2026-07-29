@@ -1,5 +1,6 @@
 import { ClinicalOrder, OrderItem, OrderStatus } from '../types';
 import { parseTelegramTextClientSide } from '../utils/parser';
+import { fetchSupabaseOrders, insertSupabaseOrder } from './supabaseOrderService';
 
 const STORAGE_KEY = 'clinical_orders_gh_pages_v1';
 export const DEFAULT_VERCEL_API_URL = 'https://im-er-tracker-4akzsrg8x-silver-arrow.vercel.app';
@@ -108,6 +109,13 @@ function saveLocalOrders(orders: ClinicalOrder[]) {
 
 export const orderService = {
   async getOrders(): Promise<ClinicalOrder[]> {
+    // 1. Try fetching directly from Supabase first
+    const sbOrders = await fetchSupabaseOrders();
+    if (sbOrders && sbOrders.length > 0) {
+      return sbOrders;
+    }
+
+    // 2. Try fetching from Express API endpoint if available
     try {
       const res = await fetch(getApiUrl('/api/orders'));
       if (res.ok) {
@@ -119,10 +127,16 @@ export const orderService = {
     } catch {
       // API unavailable or static environment (GitHub Pages)
     }
+
     return getLocalOrders();
   },
 
   async createOrderFromText(rawText: string): Promise<ClinicalOrder> {
+    // 1. Try inserting directly into Supabase first
+    const sbOrder = await insertSupabaseOrder(rawText);
+    if (sbOrder) return sbOrder;
+
+    // 2. Try posting to Express / Vercel API
     try {
       const res = await fetch(getApiUrl('/api/orders'), {
         method: 'POST',

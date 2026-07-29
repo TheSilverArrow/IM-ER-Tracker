@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Stethoscope, Plus, Bot, Code2, RefreshCw, Radio, UserX, ChevronDown, Wrench } from 'lucide-react';
+import { Stethoscope, Plus, Bot, Code2, RefreshCw, Radio, UserX, ChevronDown, Wrench, Database } from 'lucide-react';
 
 interface Props {
   onOpenNewOrder: () => void;
   onOpenSimulator: () => void;
   onOpenWebhookDocs: () => void;
   onOpenManageSenders: () => void;
+  onOpenSupabaseSettings?: () => void;
   onRefresh: () => void;
   isRefreshing: boolean;
   autoRefreshEnabled: boolean;
@@ -18,6 +19,7 @@ export const Header: React.FC<Props> = ({
   onOpenSimulator,
   onOpenWebhookDocs,
   onOpenManageSenders,
+  onOpenSupabaseSettings,
   onRefresh,
   isRefreshing,
   autoRefreshEnabled,
@@ -124,6 +126,15 @@ export const Header: React.FC<Props> = ({
                   <Code2 className="w-4 h-4 text-emerald-500" />
                   <span>Webhook API Docs</span>
                 </button>
+                {onOpenSupabaseSettings && (
+                  <button
+                    onClick={onOpenSupabaseSettings}
+                    className="w-full flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left border-t border-slate-100 dark:border-slate-800"
+                  >
+                    <Database className="w-4 h-4 text-emerald-500" />
+                    <span>Supabase Live Config</span>
+                  </button>
+                )}
               </div>
             )}
           </div>
