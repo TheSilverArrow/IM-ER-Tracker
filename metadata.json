@@ -1,0 +1,6 @@
+{
+  "name": "Clinical Order Tracker",
+  "description": "Mobile-first, desktop-optimized clinical order tracker for hospital rounds with raw Telegram message AI parsing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
