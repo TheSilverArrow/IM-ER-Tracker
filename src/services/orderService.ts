@@ -193,7 +193,7 @@ export const orderService = {
     return updatedOrder;
   },
 
-  async updateStatus(id: string, status: OrderStatus): Promise<ClinicalOrder> {
+  async updateStatus(id: string, status: OrderStatus, existingOrder?: ClinicalOrder): Promise<ClinicalOrder> {
     updateSupabaseOrder(id, { status }).catch(() => {});
     try {
       const res = await fetch(getApiUrl(`/api/orders/${id}`), {
@@ -211,25 +211,42 @@ export const orderService = {
 
     const current = getLocalOrders();
     const idx = current.findIndex((o) => o.id === id);
-    if (idx === -1) throw new Error('Order not found');
+    const baseOrder = idx !== -1 ? current[idx] : existingOrder;
 
-    const updatedOrder = {
-      ...current[idx],
+    const updatedOrder: ClinicalOrder = {
+      ...(baseOrder || {
+        id,
+        patient_name: 'Patient',
+        age_sex: 'N/A',
+        birthday: 'Unspecified',
+        bed_number: 'Unassigned',
+        case_number: `CN-${Math.floor(10000 + Math.random() * 90000)}`,
+        ordered_by: 'Doctor',
+        items: [],
+        raw_text: '',
+        timestamp: new Date().toISOString(),
+        created_at: Date.now(),
+      }),
       status,
       updated_at: Date.now(),
     };
-    current[idx] = updatedOrder;
+
+    if (idx !== -1) {
+      current[idx] = updatedOrder;
+    } else {
+      current.unshift(updatedOrder);
+    }
     saveLocalOrders(current);
     return updatedOrder;
   },
 
-  async toggleItem(orderId: string, itemId: string, isCompleted: boolean): Promise<ClinicalOrder> {
+  async toggleItem(orderId: string, itemId: string, isCompleted: boolean, existingOrder?: ClinicalOrder): Promise<ClinicalOrder> {
     const current = getLocalOrders();
     const idx = current.findIndex((o) => o.id === orderId);
-    const order = idx !== -1 ? current[idx] : null;
+    const order = idx !== -1 ? current[idx] : existingOrder;
 
-    let updatedItems: OrderItem[] = [];
-    let newStatus: OrderStatus = 'In Progress';
+    let updatedItems: OrderItem[] = order ? order.items : [];
+    let newStatus: OrderStatus = order ? order.status : 'In Progress';
 
     if (order) {
       updatedItems = order.items.map((it) =>
@@ -262,8 +279,10 @@ export const orderService = {
         if (data.success && data.order) {
           if (idx !== -1) {
             current[idx] = data.order;
-            saveLocalOrders(current);
+          } else {
+            current.unshift(data.order);
           }
+          saveLocalOrders(current);
           return data.order;
         }
       }
@@ -271,24 +290,37 @@ export const orderService = {
       // Fallback
     }
 
-    if (idx === -1) throw new Error('Order not found');
-
     const updatedOrder: ClinicalOrder = {
-      ...order!,
+      ...(order || {
+        id: orderId,
+        patient_name: 'Patient',
+        age_sex: 'N/A',
+        birthday: 'Unspecified',
+        bed_number: 'Unassigned',
+        case_number: `CN-${Math.floor(10000 + Math.random() * 90000)}`,
+        ordered_by: 'Doctor',
+        raw_text: '',
+        timestamp: new Date().toISOString(),
+        created_at: Date.now(),
+      }),
       items: updatedItems,
       status: newStatus,
       updated_at: Date.now(),
     };
 
-    current[idx] = updatedOrder;
+    if (idx !== -1) {
+      current[idx] = updatedOrder;
+    } else {
+      current.unshift(updatedOrder);
+    }
     saveLocalOrders(current);
     return updatedOrder;
   },
 
-  async completeAllItems(orderId: string): Promise<ClinicalOrder> {
+  async completeAllItems(orderId: string, existingOrder?: ClinicalOrder): Promise<ClinicalOrder> {
     const current = getLocalOrders();
     const idx = current.findIndex((o) => o.id === orderId);
-    const order = idx !== -1 ? current[idx] : null;
+    const order = idx !== -1 ? current[idx] : existingOrder;
 
     let updatedItems: OrderItem[] = [];
     if (order) {
@@ -308,8 +340,10 @@ export const orderService = {
         if (data.success && data.order) {
           if (idx !== -1) {
             current[idx] = data.order;
-            saveLocalOrders(current);
+          } else {
+            current.unshift(data.order);
           }
+          saveLocalOrders(current);
           return data.order;
         }
       }
@@ -317,16 +351,29 @@ export const orderService = {
       // Fallback
     }
 
-    if (idx === -1) throw new Error('Order not found');
-
     const updatedOrder: ClinicalOrder = {
-      ...order!,
+      ...(order || {
+        id: orderId,
+        patient_name: 'Patient',
+        age_sex: 'N/A',
+        birthday: 'Unspecified',
+        bed_number: 'Unassigned',
+        case_number: `CN-${Math.floor(10000 + Math.random() * 90000)}`,
+        ordered_by: 'Doctor',
+        raw_text: '',
+        timestamp: new Date().toISOString(),
+        created_at: Date.now(),
+      }),
       items: updatedItems,
       status: 'Done',
       updated_at: Date.now(),
     };
 
-    current[idx] = updatedOrder;
+    if (idx !== -1) {
+      current[idx] = updatedOrder;
+    } else {
+      current.unshift(updatedOrder);
+    }
     saveLocalOrders(current);
     return updatedOrder;
   },

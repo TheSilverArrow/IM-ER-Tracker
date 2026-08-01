@@ -10,13 +10,27 @@ const metaEnv =
   {};
 
 export function getEnvSupabaseConfig(): { url: string; key: string } {
-  const url = metaEnv.VITE_SUPABASE_URL || metaEnv.SUPABASE_URL || '';
-  const key =
-    metaEnv.VITE_SUPABASE_ANON_KEY ||
-    metaEnv.VITE_SUPABASE_KEY ||
-    metaEnv.SUPABASE_ANON_KEY ||
-    metaEnv.SUPABASE_KEY ||
+  const meta = (typeof import.meta !== 'undefined' && (import.meta as unknown as { env?: Record<string, string> }).env) || {};
+  const proc = typeof process !== 'undefined' && process.env ? process.env : {};
+
+  const url =
+    meta.VITE_SUPABASE_URL ||
+    meta.SUPABASE_URL ||
+    proc.VITE_SUPABASE_URL ||
+    proc.SUPABASE_URL ||
     '';
+
+  const key =
+    meta.VITE_SUPABASE_ANON_KEY ||
+    meta.VITE_SUPABASE_KEY ||
+    meta.SUPABASE_ANON_KEY ||
+    meta.SUPABASE_KEY ||
+    proc.VITE_SUPABASE_ANON_KEY ||
+    proc.VITE_SUPABASE_KEY ||
+    proc.SUPABASE_ANON_KEY ||
+    proc.SUPABASE_KEY ||
+    '';
+
   return { url: url.trim(), key: key.trim() };
 }
 

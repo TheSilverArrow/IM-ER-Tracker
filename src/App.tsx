@@ -273,17 +273,23 @@ export default function App() {
 
   // Handle status update
   const handleUpdateStatus = async (id: string, status: OrderStatus) => {
+    const existing = orders.find((o) => o.id === id);
+    setOrders((prev) =>
+      prev.map((o) => (o.id === id ? { ...o, status, updated_at: Date.now() } : o))
+    );
+
     try {
-      const updated = await orderService.updateStatus(id, status);
+      const updated = await orderService.updateStatus(id, status, existing);
       setOrders((prev) => prev.map((o) => (o.id === id ? mergeOrderData(o, updated) : o)));
     } catch (err: any) {
       console.error('Error updating status:', err);
-      alert(`Could not update status: ${err?.message || 'Unknown error'}`);
     }
   };
 
   // Toggle single item in checklist
   const handleToggleItem = async (orderId: string, itemId: string, isCompleted: boolean) => {
+    const existing = orders.find((o) => o.id === orderId);
+
     // Immediate optimistic local UI update for instantaneous responsiveness
     setOrders((prev) =>
       prev.map((o) => {
@@ -305,7 +311,7 @@ export default function App() {
     );
 
     try {
-      const updated = await orderService.toggleItem(orderId, itemId, isCompleted);
+      const updated = await orderService.toggleItem(orderId, itemId, isCompleted, existing);
       setOrders((prev) =>
         prev.map((o) => (o.id === orderId ? mergeOrderData(o, updated) : o))
       );
@@ -316,6 +322,8 @@ export default function App() {
 
   // Complete all items in tile
   const handleCompleteAllItems = async (orderId: string) => {
+    const existing = orders.find((o) => o.id === orderId);
+
     setOrders((prev) =>
       prev.map((o) => {
         if (o.id !== orderId) return o;
@@ -329,7 +337,7 @@ export default function App() {
     );
 
     try {
-      const updated = await orderService.completeAllItems(orderId);
+      const updated = await orderService.completeAllItems(orderId, existing);
       setOrders((prev) =>
         prev.map((o) => (o.id === orderId ? mergeOrderData(o, updated) : o))
       );
@@ -395,7 +403,7 @@ export default function App() {
       setOrders(resetList);
       triggerToast('Board reset to sample round tiles');
     } catch (err: any) {
-      alert('Error resetting data');
+      triggerToast('Error resetting data');
     } finally {
       setIsLoading(false);
     }
@@ -452,7 +460,6 @@ export default function App() {
       triggerToast(`✅ Approved & Displayed order for ${locationLabel}!`);
     } catch (err: any) {
       console.error('Error in approve order:', err);
-      alert(`Could not approve order: ${err?.message || 'Unknown error'}`);
     }
   };
 
