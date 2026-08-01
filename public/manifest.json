@@ -1,0 +1,17 @@
+{
+  "short_name": "STAT Monitor",
+  "name": "STAT Emergency Clinical Monitor",
+  "icons": [
+    {
+      "src": "/siren.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0f172a",
+  "theme_color": "#e11d48",
+  "display": "standalone",
+  "orientation": "portrait",
+  "description": "Real-time clinical emergency STAT order monitoring & alarm alert system for hospital staff."
+}

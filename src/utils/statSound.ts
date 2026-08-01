@@ -764,6 +764,14 @@ export function playStatAlarmSound(
 
     const now = ctx.currentTime;
 
+    if (typeof window !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate([600, 150, 600, 150, 800]);
+      } catch (e) {
+        // Ignore vibration errors
+      }
+    }
+
     const masterGain = ctx.createGain();
     masterGain.gain.setValueAtTime(gainMultiplier, now);
     masterGain.connect(ctx.destination);
