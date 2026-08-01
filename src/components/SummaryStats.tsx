@@ -1,94 +1,113 @@
 import React from 'react';
 import { SummaryStats } from '../types';
-import { Clock, Activity, CheckCircle2, ClipboardList } from 'lucide-react';
+import { Clock, Activity, CheckCircle2, Layers } from 'lucide-react';
 
 interface Props {
   stats: SummaryStats;
   onSelectStatus?: (status: string) => void;
   activeStatus?: string;
+  totalCount?: number;
 }
 
 export const SummaryStatsWidget: React.FC<Props> = ({
   stats,
   onSelectStatus,
   activeStatus = 'All',
+  totalCount = 0,
 }) => {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-      {/* Total Pending */}
-      <div
+    <div className="flex flex-wrap items-center gap-2 mb-4">
+      {/* All Orders Pill */}
+      <button
+        type="button"
+        onClick={() => onSelectStatus?.('All')}
+        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
+          activeStatus === 'All'
+            ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-slate-900 dark:border-white shadow-xs'
+            : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+        }`}
+      >
+        <Layers className="w-3.5 h-3.5" />
+        <span>All Orders</span>
+        <span
+          className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+            activeStatus === 'All'
+              ? 'bg-slate-700 text-white dark:bg-slate-200 dark:text-slate-900'
+              : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+          }`}
+        >
+          {totalCount}
+        </span>
+      </button>
+
+      {/* Pending Counter */}
+      <button
+        type="button"
         onClick={() => onSelectStatus?.('Pending')}
-        className={`cursor-pointer transition-all duration-200 rounded-2xl p-4 border bg-white dark:bg-slate-900 ${
+        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
           activeStatus === 'Pending'
-            ? 'ring-2 ring-amber-500 border-amber-500 shadow-md'
-            : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+            ? 'bg-amber-500 text-white border-amber-500 shadow-xs'
+            : 'bg-white dark:bg-slate-900 text-amber-700 dark:text-amber-400 border-slate-200 dark:border-slate-800 hover:border-amber-300 dark:hover:border-amber-800'
         }`}
       >
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-            Pending Approval
-          </span>
-          <div className="p-2 rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-950/80 dark:text-amber-400">
-            <Clock className="w-4 h-4" />
-          </div>
-        </div>
-        <div className="mt-3 flex items-baseline justify-between">
-          <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
-            {stats.totalPending}
-          </span>
-          <span className="text-xs text-amber-600 dark:text-amber-400 font-semibold">Triage</span>
-        </div>
-      </div>
+        <Clock className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
+        <span>Pending</span>
+        <span
+          className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+            activeStatus === 'Pending'
+              ? 'bg-white text-amber-800'
+              : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+          }`}
+        >
+          {stats.totalPending}
+        </span>
+      </button>
 
-      {/* In Progress */}
-      <div
+      {/* In Progress Counter */}
+      <button
+        type="button"
         onClick={() => onSelectStatus?.('In Progress')}
-        className={`cursor-pointer transition-all duration-200 rounded-2xl p-4 border bg-white dark:bg-slate-900 ${
+        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
           activeStatus === 'In Progress'
-            ? 'ring-2 ring-blue-500 border-blue-500 shadow-md'
-            : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+            ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+            : 'bg-white dark:bg-slate-900 text-blue-700 dark:text-blue-400 border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-800'
         }`}
       >
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-            In Progress
-          </span>
-          <div className="p-2 rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/80 dark:text-blue-400">
-            <Activity className="w-4 h-4 animate-pulse" />
-          </div>
-        </div>
-        <div className="mt-3 flex items-baseline justify-between">
-          <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
-            {stats.inProgress}
-          </span>
-          <span className="text-xs text-blue-600 dark:text-blue-400 font-semibold">Active</span>
-        </div>
-      </div>
+        <Activity className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 animate-pulse" />
+        <span>In Progress</span>
+        <span
+          className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+            activeStatus === 'In Progress'
+              ? 'bg-white text-blue-800'
+              : 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
+          }`}
+        >
+          {stats.inProgress}
+        </span>
+      </button>
 
-      {/* Done */}
-      <div
+      {/* Completed Counter */}
+      <button
+        type="button"
         onClick={() => onSelectStatus?.('Done')}
-        className={`cursor-pointer transition-all duration-200 rounded-2xl p-4 border bg-white dark:bg-slate-900 ${
+        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
           activeStatus === 'Done'
-            ? 'ring-2 ring-emerald-500 border-emerald-500 shadow-md'
-            : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+            ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+            : 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 border-slate-200 dark:border-slate-800 hover:border-emerald-300 dark:hover:border-emerald-800'
         }`}
       >
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-            Completed
-          </span>
-          <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/80 dark:text-emerald-400">
-            <CheckCircle2 className="w-4 h-4" />
-          </div>
-        </div>
-        <div className="mt-3 flex items-baseline justify-between">
-          <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
-            {stats.completedToday}
-          </span>
-          <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">Fulfilled</span>
-        </div>
-      </div>
+        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
+        <span>Completed</span>
+        <span
+          className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+            activeStatus === 'Done'
+              ? 'bg-white text-emerald-800'
+              : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+          }`}
+        >
+          {stats.completedToday}
+        </span>
+      </button>
     </div>
   );
 };

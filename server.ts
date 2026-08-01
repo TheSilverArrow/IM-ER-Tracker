@@ -51,66 +51,9 @@ export interface ClinicalOrder {
 }
 
 // Initial sample orders for hospital rounds
-const initialOrders: ClinicalOrder[] = [
-  {
-    id: 'ord-101',
-    patient_name: 'Jonathan Doe',
-    age_sex: '58 / M',
-    birthday: '1968-03-14',
-    bed_number: 'Bed 302-A',
-    case_number: 'CN-90412',
-    ordered_by: 'Dr. Vance',
-    status: 'Pending',
-    items: [
-      { id: 'it-1', item_text: 'STAT CBC & CMP lab draw', is_completed: false },
-      { id: 'it-2', item_text: 'Blood Cultures x2 for spiking fever (38.9°C)', is_completed: false },
-      { id: 'it-3', item_text: '12-Lead ECG for sinus tachycardia', is_completed: false },
-    ],
-    timestamp: new Date(Date.now() - 8 * 60 * 1000).toISOString(),
-    raw_text: 'Bed 302A Pt Jonathan Doe 58M DOB 03/14/1968 STAT CBC, CMP, Blood cultures x2 for spiking fever 38.9C, plus 12-lead ECG - Dr. Vance',
-    created_at: Date.now() - 8 * 60 * 1000,
-    updated_at: Date.now() - 8 * 60 * 1000,
-  },
-  {
-    id: 'ord-102',
-    patient_name: 'Maria Santos',
-    age_sex: '42 / F',
-    birthday: '1984-09-22',
-    bed_number: 'Bed 412',
-    case_number: 'CN-83109',
-    ordered_by: 'Dr. Chen',
-    status: 'In Progress',
-    items: [
-      { id: 'it-4', item_text: 'Portable Single View CXR post-intubation', is_completed: true },
-      { id: 'it-5', item_text: 'Arterial Blood Gas (ABG) stat', is_completed: false },
-      { id: 'it-6', item_text: 'Check endotracheal tube position', is_completed: false },
-    ],
-    timestamp: new Date(Date.now() - 22 * 60 * 1000).toISOString(),
-    raw_text: 'Bed 412 Maria Santos 42F DOB 09/22/1984 Portable CXR ETT placement check, ABG stat - Dr. Chen',
-    created_at: Date.now() - 22 * 60 * 1000,
-    updated_at: Date.now() - 10 * 60 * 1000,
-  },
-  {
-    id: 'ord-103',
-    patient_name: 'Arthur Reed',
-    age_sex: '67 / M',
-    birthday: '1959-11-05',
-    bed_number: 'Bed 205-B',
-    case_number: 'CN-77210',
-    ordered_by: 'Dr. Lopez',
-    status: 'Done',
-    items: [
-      { id: 'it-7', item_text: 'Specimen cup for Urine Analysis (UA)', is_completed: true },
-      { id: 'it-8', item_text: 'Urine Culture & Sensitivity pre-op', is_completed: true },
-    ],
-    timestamp: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
-    raw_text: '205B Arthur Reed 67M DOB 11/05/1959 specimen cup UA and C&S pre-op - Dr. Lopez',
-    created_at: Date.now() - 60 * 60 * 1000,
-    updated_at: Date.now() - 20 * 60 * 1000,
-  },
-];
+const initialOrders: ClinicalOrder[] = [];
 
-let orders: ClinicalOrder[] = [...initialOrders];
+let orders: ClinicalOrder[] = [];
 
 // Gemini AI Setup
 function getGeminiAI() {

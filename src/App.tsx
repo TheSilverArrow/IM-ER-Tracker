@@ -477,12 +477,10 @@ export default function App() {
     return orders.filter((o) => o.status === 'Pending' && !isSenderBlocked(o.ordered_by, blockedSenders));
   }, [orders, blockedSenders]);
 
-  // Filtered & Sorted Active Orders (Non-Pending)
+  // Filtered & Sorted Active Orders (Including Pending, In Progress, Done in single view)
   const filteredActiveOrders = useMemo(() => {
     return orders
       .filter((o) => {
-        if (o.status === 'Pending') return false;
-
         // Muted sender filter
         if (!showBlockedOrders && isSenderBlocked(o.ordered_by, blockedSenders)) {
           return false;
@@ -542,7 +540,6 @@ export default function App() {
 
       {/* Header */}
       <Header
-        onOpenNewOrder={() => setIsNewOrderOpen(true)}
         onOpenSimulator={() => setIsSimulatorOpen(true)}
         onOpenWebhookDocs={() => setIsWebhookDocsOpen(true)}
         onOpenManageSenders={() => setIsManageSendersOpen(true)}
@@ -559,47 +556,12 @@ export default function App() {
       <div className="flex-1 max-w-7xl w-full mx-auto">
         {/* Main Dashboard Panel */}
         <main className="p-4 sm:p-6 min-w-0">
-          {/* STAT Emergency Mode Notification Banner */}
-          <div className="mb-5 p-4 rounded-2xl bg-gradient-to-r from-rose-600 to-amber-600 text-white shadow-lg border border-rose-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-white/20 backdrop-blur shrink-0">
-                <BellRing className="w-6 h-6 text-white animate-bounce" />
-              </div>
-              <div>
-                <h3 className="text-sm sm:text-base font-extrabold flex items-center gap-2">
-                  <span>STAT EMERGENCY FILTER ACTIVE</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-white text-rose-700 font-bold uppercase tracking-wide">
-                    Strict Mode
-                  </span>
-                </h3>
-                <p className="text-xs text-rose-100 mt-0.5">
-                  Only messages containing the word <strong>&quot;STAT&quot;</strong> generate audio alerts and display on screen. All non-STAT and muted messages are deleted from Supabase immediately.
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => playStatAlarmSound()}
-              className="px-3.5 py-1.5 rounded-xl bg-white text-rose-700 hover:bg-rose-50 font-bold text-xs shrink-0 shadow-xs flex items-center gap-1.5 transition-all"
-            >
-              <BellRing className="w-3.5 h-3.5" />
-              <span>Test Alarm Tone</span>
-            </button>
-          </div>
-
-          {/* Summary Statistic Widgets */}
+          {/* Compact Status Counter Bar */}
           <SummaryStatsWidget
             stats={summaryStats}
             activeStatus={filters.status}
+            totalCount={orders.length}
             onSelectStatus={(st) => handleFilterChange({ status: st as OrderStatus | 'All' })}
-          />
-
-          {/* Section 1: Pending Inbox (Raw Feed) */}
-          <PendingQueueTriage
-            pendingOrders={pendingOrders}
-            onApproveAndParse={handleApproveAndParse}
-            onDismiss={handleDeleteOrder}
-            onMuteSender={handleBlockSender}
-            onDeleteAllPending={handleDeleteAllPending}
           />
 
           {/* Mobile Search & Filter Bar */}
@@ -614,7 +576,7 @@ export default function App() {
           <div className="hidden sm:flex items-center justify-between gap-4 mb-4 pt-1">
             <div className="flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-200">
               <ClipboardCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              <span>Active Tracked Orders (Grouped by Bed / Location)</span>
+              <span>Clinical Orders (Grouped by Bed / Location)</span>
               <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
                 {filteredActiveOrders.length}
               </span>

@@ -15,8 +15,9 @@ export function isStatMessage(order: Partial<ClinicalOrder> | null | undefined):
   const bed = order.bed_number || '';
   const orderedBy = order.ordered_by || '';
 
-  const combined = `${rawText} ${patientName} ${itemTexts} ${bed} ${orderedBy}`.toUpperCase();
+  const combined = `${rawText} ${patientName} ${itemTexts} ${bed} ${orderedBy}`;
 
-  // Match standalone STAT or STAT with punctuation (e.g. "STAT", "STAT!", "[STAT]", "STAT:")
-  return /\bSTAT\b/i.test(combined) || combined.includes('STAT');
+  // Strictly match standalone word "STAT" (case-insensitive).
+  // Will NOT match "status", "statue", "station", "statistics", etc.
+  return /\bSTAT\b/i.test(combined);
 }

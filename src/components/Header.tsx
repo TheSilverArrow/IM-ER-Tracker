@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Stethoscope, Plus, Bot, Code2, RefreshCw, Radio, UserX, ChevronDown, Wrench, Database, BellRing, Volume2 } from 'lucide-react';
+import { Siren, Bot, Code2, RefreshCw, UserX, ChevronDown, Wrench, Database, BellRing, Volume2 } from 'lucide-react';
 
 interface Props {
-  onOpenNewOrder: () => void;
+  onOpenNewOrder?: () => void;
   onOpenSimulator: () => void;
   onOpenWebhookDocs: () => void;
   onOpenManageSenders: () => void;
@@ -16,7 +16,6 @@ interface Props {
 }
 
 export const Header: React.FC<Props> = ({
-  onOpenNewOrder,
   onOpenSimulator,
   onOpenWebhookDocs,
   onOpenManageSenders,
@@ -35,21 +34,21 @@ export const Header: React.FC<Props> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
         {/* Brand & Title */}
         <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-md shadow-blue-500/20">
-            <Stethoscope className="w-5 h-5 sm:w-6 sm:h-6" />
+          <div className="p-2.5 rounded-xl bg-gradient-to-br from-rose-600 to-amber-600 text-white shadow-md shadow-rose-500/20 shrink-0">
+            <Siren className="w-5 h-5 sm:w-6 sm:h-6 animate-pulse" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900 dark:text-white">
                 STAT Emergency Order Monitor
               </h1>
-              <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-800 animate-pulse">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-800 animate-pulse">
                 <BellRing className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
-                STAT Sound Alert Active
+                STAT Alarm Active
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">
-              Only STAT messages are processed & played with audio. All non-STAT messages are auto-deleted.
+              Strict Filter: Only exact standalone <strong>&quot;STAT&quot;</strong> orders alert and display on screen.
             </p>
           </div>
         </div>
@@ -59,7 +58,7 @@ export const Header: React.FC<Props> = ({
           {onTestStatSound && (
             <button
               onClick={onTestStatSound}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-xs transition-all"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-xs transition-all active:scale-95"
               title="Test STAT Alarm Audio Tone"
             >
               <Volume2 className="w-4 h-4" />
@@ -108,12 +107,12 @@ export const Header: React.FC<Props> = ({
 
             {isToolsDropdownOpen && (
               <div
-                className="absolute right-0 mt-2 w-56 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl py-2 z-50 animate-fadeIn"
+                className="absolute right-0 mt-2 w-56 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl py-2 z-50 animate-fadeIn text-slate-800 dark:text-slate-200"
                 onClick={() => setIsToolsDropdownOpen(false)}
               >
                 <button
                   onClick={onOpenManageSenders}
-                  className="w-full flex items-center justify-between px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left"
+                  className="w-full flex items-center justify-between px-3.5 py-2.5 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left"
                 >
                   <div className="flex items-center gap-2">
                     <UserX className="w-4 h-4 text-rose-500" />
@@ -126,7 +125,7 @@ export const Header: React.FC<Props> = ({
 
                 <button
                   onClick={onOpenSimulator}
-                  className="w-full flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left"
+                  className="w-full flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left"
                 >
                   <Bot className="w-4 h-4 text-indigo-500" />
                   <span>Simulate Telegram Order</span>
@@ -134,7 +133,7 @@ export const Header: React.FC<Props> = ({
 
                 <button
                   onClick={onOpenWebhookDocs}
-                  className="w-full flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left"
+                  className="w-full flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left"
                 >
                   <Code2 className="w-4 h-4 text-emerald-500" />
                   <span>Webhook API Docs</span>
@@ -142,7 +141,7 @@ export const Header: React.FC<Props> = ({
                 {onOpenSupabaseSettings && (
                   <button
                     onClick={onOpenSupabaseSettings}
-                    className="w-full flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left border-t border-slate-100 dark:border-slate-800"
+                    className="w-full flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left border-t border-slate-100 dark:border-slate-800"
                   >
                     <Database className="w-4 h-4 text-emerald-500" />
                     <span>Supabase Live Config</span>
@@ -151,15 +150,6 @@ export const Header: React.FC<Props> = ({
               </div>
             )}
           </div>
-
-          {/* New Order primary button */}
-          <button
-            onClick={onOpenNewOrder}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-500/20 transition-all active:scale-95"
-          >
-            <Plus className="w-4 h-4 stroke-[3]" />
-            <span>+ Log Order</span>
-          </button>
         </div>
       </div>
     </header>
