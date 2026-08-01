@@ -6,7 +6,95 @@ export interface StatSoundPreset {
   name: string;
   description: string;
   tag: string;
-  category?: 'clinical' | 'effects' | 'retro';
+  category?: 'clinical' | 'effects' | 'retro' | 'custom';
+}
+
+export interface CustomSound {
+  id: string;
+  name: string;
+  dataUrl: string;
+  size: number;
+  createdAt: number;
+}
+
+const CUSTOM_SOUNDS_KEY = 'stat_custom_sounds_v1';
+
+export function getCustomSounds(): CustomSound[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(CUSTOM_SOUNDS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (err) {
+    console.warn('Error reading custom sounds:', err);
+  }
+  return [];
+}
+
+export function saveCustomSounds(sounds: CustomSound[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(CUSTOM_SOUNDS_KEY, JSON.stringify(sounds));
+  } catch (err) {
+    console.warn('Error saving custom sounds to localStorage:', err);
+  }
+}
+
+export async function processAndSaveCustomAudio(file: File): Promise<CustomSound> {
+  if (!file.type.startsWith('audio/') && !file.name.match(/\.(mp3|wav|ogg|m4a|aac|flac|webm)$/i)) {
+    throw new Error('Please select a valid audio file (.mp3, .wav, .ogg, .m4a, .aac)');
+  }
+  if (file.size > 8 * 1024 * 1024) {
+    throw new Error('Audio file exceeds maximum size limit of 8MB');
+  }
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const dataUrl = reader.result as string;
+        const newSound: CustomSound = {
+          id: `custom-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+          name: file.name.replace(/\.[^/.]+$/, ''),
+          dataUrl,
+          size: file.size,
+          createdAt: Date.now(),
+        };
+
+        const current = getCustomSounds();
+        const updated = [newSound, ...current];
+        saveCustomSounds(updated);
+        resolve(newSound);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = () => reject(new Error('Failed to read audio file'));
+    reader.readAsDataURL(file);
+  });
+}
+
+export function deleteCustomSound(id: string): void {
+  const current = getCustomSounds();
+  const updated = current.filter((s) => s.id !== id);
+  saveCustomSounds(updated);
+
+  if (getSelectedSoundId() === id) {
+    setSelectedSoundId('piercing-pulse');
+  }
+}
+
+export function getAllSoundPresets(): StatSoundPreset[] {
+  const customPresets: StatSoundPreset[] = getCustomSounds().map((cs) => ({
+    id: cs.id,
+    name: cs.name,
+    description: `User Uploaded Audio (${(cs.size / 1024).toFixed(0)} KB)`,
+    tag: 'CUSTOM',
+    category: 'custom',
+  }));
+  return [...customPresets, ...STAT_SOUND_PRESETS];
 }
 
 export const STAT_SOUND_PRESETS: StatSoundPreset[] = [
@@ -123,12 +211,30 @@ const SOUND_LOOPS_KEY = 'stat_sound_loops_v1';
 
 // Getters & Setters with localStorage persistence
 
+const audioBufferCache = new Map<string, AudioBuffer>();
+
+async function getAudioBufferForDataUrl(ctx: AudioContext, dataUrl: string): Promise<AudioBuffer> {
+  if (audioBufferCache.has(dataUrl)) {
+    return audioBufferCache.get(dataUrl)!;
+  }
+  const response = await fetch(dataUrl);
+  const arrayBuffer = await response.arrayBuffer();
+  const decoded = await ctx.decodeAudioData(arrayBuffer);
+  audioBufferCache.set(dataUrl, decoded);
+  return decoded;
+}
+
 export function getSelectedSoundId(): string {
   if (typeof window === 'undefined') return 'piercing-pulse';
   try {
     const saved = localStorage.getItem(SOUND_ID_KEY);
-    if (saved && STAT_SOUND_PRESETS.some((p) => p.id === saved)) {
-      return saved;
+    if (saved) {
+      if (STAT_SOUND_PRESETS.some((p) => p.id === saved)) {
+        return saved;
+      }
+      if (getCustomSounds().some((cs) => cs.id === saved)) {
+        return saved;
+      }
     }
   } catch (err) {
     console.warn('Error reading sound preference:', err);
@@ -662,6 +768,31 @@ export function playStatAlarmSound(
     masterGain.gain.setValueAtTime(gainMultiplier, now);
     masterGain.connect(ctx.destination);
 
+    // Check if soundId belongs to a custom uploaded sound
+    const customSound = getCustomSounds().find((cs) => cs.id === soundId);
+
+    if (customSound && customSound.dataUrl) {
+      getAudioBufferForDataUrl(ctx, customSound.dataUrl)
+        .then((buffer) => {
+          const duration = buffer.duration;
+          const spacing = duration + 0.12;
+
+          for (let l = 0; l < loops; l++) {
+            const startAt = now + l * spacing;
+            const source = ctx.createBufferSource();
+            source.buffer = buffer;
+            source.connect(masterGain);
+            source.start(startAt);
+          }
+        })
+        .catch((err) => {
+          console.warn('Failed to decode custom audio, playing default preset instead:', err);
+          renderSoundPreset(ctx, masterGain, 'piercing-pulse', now);
+        });
+      return;
+    }
+
+    // Default synthesized presets
     const baseDuration = getSoundBaseDuration(soundId);
     const loopSpacing = baseDuration + 0.12;
 

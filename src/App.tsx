@@ -13,7 +13,15 @@ import { SupabaseSettingsModal } from './components/SupabaseSettingsModal';
 import { SoundSelectorModal } from './components/SoundSelectorModal';
 import { orderService } from './services/orderService';
 import { subscribeToSupabaseRealtime, deleteSupabaseOrder } from './services/supabaseOrderService';
-import { getBlockedSenders, saveBlockedSenders, isSenderBlocked } from './services/senderService';
+import {
+  getBlockedSenders,
+  saveBlockedSenders,
+  isSenderBlocked,
+  fetchSupabaseMutedSenders,
+  addMutedSender,
+  removeMutedSender,
+  subscribeToMutedSendersRealtime,
+} from './services/senderService';
 import { playStatAlarmSound } from './utils/statSound';
 import { isStatMessage } from './utils/statFilter';
 import { ClipboardCheck, RefreshCw, AlertCircle, Sparkles, Filter, Bed, BellRing, ShieldAlert, Trash2 } from 'lucide-react';
@@ -136,22 +144,18 @@ export default function App() {
   const [newOrderToast, setNewOrderToast] = useState<string | null>(null);
 
   // Block sender helpers
-  const handleBlockSender = (senderName: string) => {
+  const handleBlockSender = async (senderName: string) => {
     if (!senderName) return;
     const clean = senderName.trim();
     if (blockedSenders.some((s) => s.toLowerCase() === clean.toLowerCase())) return;
-    const updated = [...blockedSenders, clean];
+    const updated = await addMutedSender(clean);
     setBlockedSenders(updated);
-    saveBlockedSenders(updated);
     triggerToast(`Muted order messages from "${clean}"`);
   };
 
-  const handleUnblockSender = (senderName: string) => {
-    const updated = blockedSenders.filter(
-      (s) => s.toLowerCase().trim() !== senderName.toLowerCase().trim()
-    );
+  const handleUnblockSender = async (senderName: string) => {
+    const updated = await removeMutedSender(senderName);
     setBlockedSenders(updated);
-    saveBlockedSenders(updated);
     triggerToast(`Allowed messages from "${senderName}" again`);
   };
 
@@ -168,16 +172,17 @@ export default function App() {
     if (showIndicator) setIsRefreshing(true);
     try {
       const data = await orderService.getOrders();
+      const currentBlocked = getBlockedSenders();
       // Filter out non-STAT orders and delete non-STAT messages from Supabase right away
       const statOrders: ClinicalOrder[] = [];
       for (const order of data) {
-        const isMuted = isSenderBlocked(order.ordered_by, blockedSenders);
+        const isMuted = isSenderBlocked(order.ordered_by, currentBlocked);
         const hasStat = isStatMessage(order);
 
         if (hasStat && !isMuted) {
           statOrders.push(order);
         } else {
-          // Immediately purge non-STAT or muted message from Supabase so it's deleted right away
+          // Immediately purge non-STAT or muted message from Supabase
           deleteSupabaseOrder(order.id).catch(() => {});
         }
       }
@@ -197,8 +202,9 @@ export default function App() {
         });
 
         const newFromData = Array.from(dataMap.values());
+        const freshBlocked = getBlockedSenders();
         return [...newFromData, ...mergedPrev].filter(
-          (o) => isStatMessage(o) && !isSenderBlocked(o.ordered_by, blockedSenders)
+          (o) => isStatMessage(o) && !isSenderBlocked(o.ordered_by, freshBlocked)
         );
       });
       setError(null);
@@ -209,17 +215,30 @@ export default function App() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [blockedSenders]);
+  }, []);
 
   // Initial load & Supabase Real-time listener
   useEffect(() => {
+    // Sync muted senders from Supabase DB on load & subscribe to realtime muted updates
+    fetchSupabaseMutedSenders().then((remoteSenders) => {
+      if (remoteSenders && remoteSenders.length > 0) {
+        setBlockedSenders(remoteSenders);
+      }
+    });
+
+    const unsubMuted = subscribeToMutedSendersRealtime((updatedSenders) => {
+      console.log('⚡ Realtime muted senders update received:', updatedSenders);
+      setBlockedSenders(updatedSenders);
+    });
+
     fetchOrders();
 
     const unsubscribe = subscribeToSupabaseRealtime({
       onInsert: async (newOrder) => {
         console.log('📥 New Real-Time Order Received via Supabase:', newOrder);
 
-        const isMuted = isSenderBlocked(newOrder.ordered_by, blockedSenders);
+        const currentBlocked = getBlockedSenders();
+        const isMuted = isSenderBlocked(newOrder.ordered_by, currentBlocked);
         const hasStat = isStatMessage(newOrder);
 
         // If message does not contain "STAT" or is from muted sender -> DO NOT PROCESS & DELETE RIGHT AWAY!
@@ -239,7 +258,8 @@ export default function App() {
         triggerToast(`🚨 STAT ALARM: New STAT message for ${newOrder.patient_name || newOrder.bed_number}!`);
       },
       onUpdate: (updatedOrder) => {
-        const isMuted = isSenderBlocked(updatedOrder.ordered_by, blockedSenders);
+        const currentBlocked = getBlockedSenders();
+        const isMuted = isSenderBlocked(updatedOrder.ordered_by, currentBlocked);
         const hasStat = isStatMessage(updatedOrder);
 
         if (!hasStat || isMuted) {
@@ -258,9 +278,10 @@ export default function App() {
     });
 
     return () => {
+      unsubMuted();
       unsubscribe();
     };
-  }, [fetchOrders, blockedSenders]);
+  }, [fetchOrders]);
 
   // Live Sync / Polling interval (5 seconds)
   useEffect(() => {
