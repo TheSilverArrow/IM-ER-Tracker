@@ -14,7 +14,7 @@ import { SoundSelectorModal } from './components/SoundSelectorModal';
 import { PwaNotificationModal } from './components/PwaNotificationModal';
 import { orderService } from './services/orderService';
 import { subscribeToSupabaseRealtime, deleteSupabaseOrder } from './services/supabaseOrderService';
-import { registerServiceWorker } from './utils/notifications';
+import { registerServiceWorker, sendSystemNotification } from './utils/notifications';
 import {
   getBlockedSenders,
   saveBlockedSenders,
@@ -220,6 +220,22 @@ export default function App() {
     }
   }, []);
 
+  // Trigger both audio alarm and OS System Notification (works on lockscreen)
+  const triggerStatAlert = useCallback((order: ClinicalOrder) => {
+    playStatAlarmSound();
+
+    const bedText = order.bed_number ? `Bed ${order.bed_number}` : 'Emergency Order';
+    const patientText = order.patient_name ? `(${order.patient_name})` : '';
+    const itemsSummary = order.items?.map((i) => i.item_text).join(', ');
+    const summary = order.raw_text || itemsSummary || 'New STAT medical order received';
+
+    sendSystemNotification(`🚨 STAT ALERT: ${bedText}`, {
+      body: `${patientText} ${summary}`.trim(),
+      tag: `stat-order-${order.id}`,
+      requireInteraction: true,
+    }).catch(() => {});
+  }, []);
+
   // Initial load & Supabase Real-time listener
   useEffect(() => {
     // Register Service Worker for PWA notifications
@@ -254,8 +270,8 @@ export default function App() {
           return;
         }
 
-        // STAT message received! Play STAT alarm sound
-        playStatAlarmSound();
+        // STAT message received! Trigger audio + native system notification
+        triggerStatAlert(newOrder);
 
         setOrders((prev) => {
           if (prev.some((o) => o.id === newOrder.id)) return prev;
@@ -397,7 +413,7 @@ export default function App() {
       return;
     }
 
-    playStatAlarmSound();
+    triggerStatAlert(created);
     setOrders((prev) => [created, ...prev]);
     triggerToast(`🚨 STAT Alarm Triggered for ${created.bed_number}!`);
   };
@@ -413,7 +429,7 @@ export default function App() {
       return;
     }
 
-    playStatAlarmSound();
+    triggerStatAlert(newOrder);
     setOrders((prev) => {
       if (prev.some((o) => o.id === newOrder.id)) return prev;
       return [newOrder, ...prev];

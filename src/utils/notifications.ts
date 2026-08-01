@@ -110,8 +110,8 @@ export async function sendSystemNotification(
 
     // Fallback to standard Notification API
     new Notification(title, {
-      icon: '/siren.svg',
-      badge: '/siren.svg',
+      icon: 'siren.svg',
+      badge: 'siren.svg',
       ...options,
     });
     return true;
