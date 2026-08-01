@@ -21,10 +21,10 @@ export const WebhookSimulatorModal: React.FC<Props> = ({ isOpen, onClose, onOrde
   if (!isOpen) return null;
 
   const sampleMessages = [
-    'Bed 302A Jonathan Doe 58M DOB 03/14/1968 STAT CBC, CMP, Blood cultures x2 for fever 38.9C, plus 12-lead ECG - Dr. Vance',
-    'Bed 412 Maria Santos 42F DOB 09/22/1984 Portable CXR ETT placement check, ABG stat - Dr. Chen',
-    '205B Arthur Reed 67M DOB 11/05/1959 Specimen cup for UA and C&S pre-op - Dr. Lopez',
-    'ICU 02 David K. 71M DOB 01/30/1955 STAT IV Furosemide 40mg push, ABG stat, repeat troponin - Dr. Miller',
+    { label: '🚨 STAT Order (Will Play Alarm & Display)', text: 'Bed 302A Jonathan Doe 58M STAT CBC, CMP, Blood cultures x2 for fever 38.9C - Dr. Vance' },
+    { label: '🚨 STAT ABG & Trop (Will Play Alarm & Display)', text: 'ICU 02 David K. 71M STAT IV Furosemide 40mg push, ABG stat, repeat troponin - Dr. Miller' },
+    { label: '❌ Non-STAT Routine Order (Will be Auto-Deleted)', text: 'Bed 205B Arthur Reed 67M Routine specimen cup for UA and C&S pre-op - Dr. Lopez' },
+    { label: '❌ Non-STAT General Checkup (Will be Auto-Deleted)', text: 'Bed 412 Maria Santos 42F Regular diet order check and vitals check - Dr. Chen' },
   ];
 
   const handleSimulate = async (textToSend?: string) => {
@@ -122,19 +122,22 @@ export const WebhookSimulatorModal: React.FC<Props> = ({ isOpen, onClose, onOrde
             Quick Clinical Sample Prompts:
           </span>
           <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-            {sampleMessages.map((msg, idx) => (
+            {sampleMessages.map((item, idx) => (
               <button
                 key={idx}
                 disabled={isSimulating}
                 onClick={() => {
-                  setTextInput(msg);
-                  handleSimulate(msg);
+                  setTextInput(item.text);
+                  handleSimulate(item.text);
                 }}
-                className="w-full text-left p-2 rounded-lg text-xs font-medium bg-slate-50 hover:bg-indigo-50 dark:bg-slate-800/60 dark:hover:bg-indigo-950/40 text-slate-700 dark:text-slate-300 hover:text-indigo-700 dark:hover:text-indigo-300 border border-slate-200/80 dark:border-slate-700/60 transition-colors flex items-center justify-between group"
+                className="w-full text-left p-2.5 rounded-xl text-xs font-medium bg-slate-50 hover:bg-indigo-50 dark:bg-slate-800/60 dark:hover:bg-indigo-950/40 text-slate-700 dark:text-slate-300 hover:text-indigo-700 dark:hover:text-indigo-300 border border-slate-200/80 dark:border-slate-700/60 transition-colors flex items-center justify-between group"
               >
-                <div className="flex items-center gap-2 truncate">
-                  <MessageSquare className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-500 shrink-0" />
-                  <span className="truncate">&quot;{msg}&quot;</span>
+                <div className="flex flex-col gap-0.5 truncate">
+                  <span className="font-bold text-[11px] text-slate-900 dark:text-white">{item.label}</span>
+                  <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 truncate text-[11px]">
+                    <MessageSquare className="w-3 h-3 text-slate-400 group-hover:text-indigo-500 shrink-0" />
+                    <span className="truncate font-mono">&quot;{item.text}&quot;</span>
+                  </div>
                 </div>
                 <Sparkles className="w-3.5 h-3.5 text-indigo-500 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity" />
               </button>

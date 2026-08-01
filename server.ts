@@ -116,14 +116,7 @@ let orders: ClinicalOrder[] = [...initialOrders];
 function getGeminiAI() {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
-  return new GoogleGenAI({
-    apiKey,
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
-      },
-    },
-  });
+  return new GoogleGenAI({ apiKey });
 }
 
 // Fallback rule parser for Telegram messages
@@ -136,56 +129,102 @@ function fallbackParseMessage(text: string): {
   ordered_by: string;
   items: string[];
 } {
-  // Bed number extraction
-  let bed_number = 'Bed Unassigned';
-  const bedMatch = text.match(
-    /(?:bed\s*|room\s*|icu\s*-?\s*|ER\s*-?\s*|\b)([0-9]{2,4}[a-zA-Z]?|[0-9]{1,2}-[a-zA-Z]|ICU-[0-9]{1,2})/i
-  );
-  if (bedMatch && bedMatch[1]) {
-    const rawBed = bedMatch[1].toUpperCase();
-    bed_number = rawBed.startsWith('BED') || rawBed.startsWith('ICU') ? rawBed : `Bed ${rawBed}`;
+  let patient_name = '';
+  let age_sex = 'N/A';
+  let birthday = 'Unspecified';
+  let bed_number = '';
+  let case_number = '';
+  let ordered_by = 'Dr. Rounding';
+
+  // Extract Age/Sex e.g. "66 y/F", "66F", "66/F", "66 y/o M"
+  const ageSexMatch = text.match(/\b([0-9]{1,3})\s*(?:y\/|yr\/|y\/o\s*)?\s*[\/,-]?\s*([MFmf])\b/i);
+  if (ageSexMatch) {
+    age_sex = `${ageSexMatch[1]} / ${ageSexMatch[2].toUpperCase()}`;
   }
 
-  // Doctor name extraction
-  let ordered_by = 'Dr. Rounding';
-  const docMatch = text.match(/(?:Dr\.|Doctor)\s*([A-Z][a-z]+)/i);
+  // Extract Case Number e.g. "Case Number: 5443282", "Case # 12345", "CN-88123"
+  const caseMatch = text.match(/(?:Case\s*(?:Number|#)?|CN|Chart\s*#?)\s*:?\s*([0-9A-Z-]+)/i);
+  if (caseMatch && caseMatch[1]) {
+    const rawCase = caseMatch[1].toUpperCase();
+    case_number = rawCase.startsWith('CN-') ? rawCase : `CN-${rawCase}`;
+  } else {
+    const randNum = Math.floor(10000 + Math.random() * 90000);
+    case_number = `CN-${randNum}`;
+  }
+
+  // Extract Location / Bed e.g. "Loc: Port A", "Bed 302", "Room 412", "ICU-04"
+  const locMatch = text.match(/(?:Loc|Location|Bed|Room|Rm|Port|Station|Unit)\s*:?\s*([a-zA-Z0-9\s-]+?)(?=[|,\n]|$)/i);
+  if (locMatch && locMatch[1]) {
+    const locStr = locMatch[1].trim();
+    if (locStr.length > 0 && locStr.length < 25) {
+      bed_number = locStr.toLowerCase().startsWith('bed') || locStr.toLowerCase().startsWith('loc')
+        ? locStr
+        : `Bed ${locStr}`;
+    }
+  }
+  if (!bed_number) {
+    const bedMatch = text.match(/(?:bed|room|rm|icu|er)\s*#?\s*([0-9]{1,4}[a-z]?|[a-z]-[0-9]{1,2}|ICU-[0-9]{1,2})/i);
+    if (bedMatch && bedMatch[1]) {
+      bed_number = `Bed ${bedMatch[1].toUpperCase()}`;
+    } else {
+      bed_number = 'ER Bed';
+    }
+  }
+
+  // Extract Doctor e.g. "Dr. MONTALBO", "Dr. Vance"
+  const docMatch = text.match(/(?:Dr\.|Doctor|MD)\s*([A-Z][a-zA-Za-z]+)/i);
   if (docMatch && docMatch[1]) {
     ordered_by = `Dr. ${docMatch[1]}`;
+  } else {
+    // Check if prominent doctor surname like MONTALBO exists at start
+    const docSurnameMatch = text.match(/\b(MONTALBO|VANCE|CHEN|LOPEZ|GARCIA|TAN|CRUZ)\b/i);
+    if (docSurnameMatch) {
+      ordered_by = `Dr. ${docSurnameMatch[1].toUpperCase()}`;
+    }
   }
 
-  // Patient name extraction
-  let patient_name = `Patient ${bed_number.replace('Bed ', '')}`;
-  const nameMatch = text.match(/(?:Pt|Patient|Name)\.?:?\s*([A-Z][a-z]+\s+[A-Z][a-z]+)/i);
+  // Extract Patient Name e.g. "JESSIE PIELAGO", "Pt: John Doe"
+  const nameMatch = text.match(/(?:Pt|Patient|Name)\.?:?\s*([A-Z][a-zA-Z]+\s+[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)/i);
   if (nameMatch && nameMatch[1]) {
     patient_name = nameMatch[1];
+  } else {
+    // Look for full uppercase names like "JESSIE PIELAGO"
+    const capsNameMatch = text.match(/\b([A-Z]{3,}\s+[A-Z]{3,}(?:\s+[A-Z]{3,})?)\b/);
+    if (capsNameMatch && capsNameMatch[1] && !capsNameMatch[1].includes('MONTALBO') && !capsNameMatch[1].includes('CASE') && !capsNameMatch[1].includes('NUMBER')) {
+      patient_name = capsNameMatch[1];
+    } else {
+      // Look for title case name
+      const doubleNameMatch = text.match(/\b([A-Z][a-z]+\s+[A-Z][a-z]+)\b/);
+      if (doubleNameMatch && doubleNameMatch[1] && !doubleNameMatch[1].startsWith('Bed') && !doubleNameMatch[1].startsWith('Doctor') && !doubleNameMatch[1].startsWith('Case')) {
+        patient_name = doubleNameMatch[1];
+      }
+    }
   }
 
-  // Age / Sex extraction
-  let age_sex = 'N/A';
-  const ageSexMatch = text.match(/\b([0-9]{1,2})\s*\/\s*([MFmf])\b|\b([0-9]{1,2})\s*([MFmf])\b/);
-  if (ageSexMatch) {
-    const age = ageSexMatch[1] || ageSexMatch[3];
-    const sex = (ageSexMatch[2] || ageSexMatch[4]).toUpperCase();
-    age_sex = `${age} / ${sex}`;
+  if (!patient_name) {
+    patient_name = bed_number !== 'ER Bed' ? `Patient (${bed_number})` : 'ER Patient';
   }
 
-  // Birthday extraction
-  let birthday = 'Unspecified';
+  // Extract DOB
   const dobMatch = text.match(/(?:DOB|Birth|Bday)\.?:?\s*([0-9]{1,2}[\/-][0-9]{1,2}[\/-][0-9]{2,4})/i);
   if (dobMatch && dobMatch[1]) {
     birthday = dobMatch[1];
   }
 
-  // Case number
-  const randNum = Math.floor(10000 + Math.random() * 90000);
-  const case_number = `CN-${randNum}`;
-
-  // Simple split items by commas or "and" or newlines
+  // Extract items cleanly by filtering out greetings, patient names, location & case lines
   const rawSegments = text
-    .replace(/(?:Bed|Pt|Doctor|Dr\.|DOB|CN-)[^,;]+/gi, '')
-    .split(/[,;\n]| and /i)
+    .split(/(?:\r?\n|\[\]|\[\s*\]|;)+/)
     .map((s) => s.trim())
-    .filter((s) => s.length > 3);
+    .filter((s) => {
+      if (s.length < 2) return false;
+      const lower = s.toLowerCase();
+      if (lower.startsWith('hello') || lower.startsWith('please facilitate') || lower.includes('thank you')) return false;
+      if (patient_name && s.includes(patient_name)) return false;
+      if (lower.includes('case number') || lower.includes('case #')) return false;
+      if (lower.startsWith('loc:') || lower.startsWith('location:')) return false;
+      if (lower === 'montalbo') return false;
+      return true;
+    });
 
   const items = rawSegments.length > 0 ? rawSegments : [text.trim()];
 
@@ -215,20 +254,26 @@ async function parseTelegramTextWithAI(text: string): Promise<{
   }
 
   try {
-    const prompt = `Analyze this clinical round Telegram message and parse all orders into structured JSON:
-Message text: "${text}"
+    const prompt = `You are an expert clinical AI parsing hospital rounding Telegram messages into structured order JSON.
 
-Instructions:
-1. "patient_name": Extract full name if present (e.g. "Jonathan Doe"), or generate clean realistic patient name if unnamed (e.g., "Patient " + Bed Number).
-2. "age_sex": Extract age and biological sex (e.g. "58 / M", "42 / F"), or infer realistic e.g. "52 / M" if missing.
-3. "birthday": Date of birth if mentioned (e.g. "1968-03-14"), or realistic DOB string if missing.
-4. "bed_number": Extract bed/room/location clearly formatted e.g. "Bed 302-A", "Bed 412", "ICU-04".
-5. "case_number": Hospital case/chart number if mentioned or format as "CN-XXXXX" with random numbers.
-6. "ordered_by": Doctor or clinician ordering (e.g., "Dr. Vance", "Dr. Chen"), or "Dr. Rounding".
-7. "items": Extract array of individual clean clinical order strings (e.g., ["STAT CBC & CMP lab draw", "Blood Cultures x2", "12-Lead ECG"]).`;
+Input message text:
+"${text}"
+
+Parse and categorize into strict JSON with the following fields:
+1. "patient_name": Extract the patient's full name (e.g., "JESSIE PIELAGO"). Look for name headers or uppercase patient names.
+2. "age_sex": Extract age and biological sex (e.g. "66 / F", "58 / M").
+3. "bed_number": Extract location/bed (e.g. "Port A", "Bed 302", "ICU-04").
+4. "case_number": Extract hospital case number (e.g. "CN-5443282", "5443282").
+5. "ordered_by": Ordering doctor surname or name (e.g. "Dr. Montalbo", "Dr. Vance").
+6. "birthday": Date of birth or "Unspecified".
+7. "items": Extract array of individual CLEAN clinical orders, lab tests, medications, or diagnostic requests (e.g., ["Post corr iCa", "Ca", "Alb OD tomorrow (7/30)", "PBS with RC", "Ferritin"]).
+
+CRITICAL RULES:
+- DO NOT put greetings ("Hello", "please facilitate for our new admission", "Thank you!"), doctor surnames, patient names, locations, or case numbers inside the "items" array!
+- The "items" array MUST ONLY contain actual actionable medical orders and diagnostic tests.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
+      model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -255,7 +300,14 @@ Instructions:
     const fallback = fallbackParseMessage(text);
 
     const parsedItems: string[] = Array.isArray(parsed.items) && parsed.items.length > 0
-      ? parsed.items.map((i: any) => String(i).trim())
+      ? parsed.items
+          .map((i: any) => String(i).trim())
+          .filter((i: string) => {
+            const lower = i.toLowerCase();
+            if (lower.startsWith('hello') || lower.startsWith('please facilitate') || lower.includes('thank you')) return false;
+            if (lower.includes('case number') || lower.startsWith('loc:')) return false;
+            return i.length > 0;
+          })
       : fallback.items;
 
     return {
@@ -265,7 +317,7 @@ Instructions:
       bed_number: parsed.bed_number || fallback.bed_number,
       case_number: parsed.case_number || fallback.case_number,
       ordered_by: parsed.ordered_by || fallback.ordered_by,
-      items: parsedItems,
+      items: parsedItems.length > 0 ? parsedItems : fallback.items,
     };
   } catch (err) {
     console.error('Gemini parsing error, using fallback:', err);
@@ -274,6 +326,21 @@ Instructions:
 }
 
 // API Endpoints
+
+// POST /api/parse - Parse clinical raw message string using Gemini 3.6 Flash
+app.post('/api/parse', async (req, res) => {
+  try {
+    const { text } = req.body || {};
+    if (!text || typeof text !== 'string') {
+      return res.status(400).json({ success: false, error: 'Message text is required' });
+    }
+    const parsed = await parseTelegramTextWithAI(text);
+    return res.json({ success: true, parsed });
+  } catch (err: any) {
+    console.error('API parse error:', err);
+    return res.status(500).json({ success: false, error: err?.message || 'Parse failed' });
+  }
+});
 
 // GET /api/orders
 app.get('/api/orders', (req, res) => {

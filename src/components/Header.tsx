@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Stethoscope, Plus, Bot, Code2, RefreshCw, Radio, UserX, ChevronDown, Wrench, Database } from 'lucide-react';
+import { Stethoscope, Plus, Bot, Code2, RefreshCw, Radio, UserX, ChevronDown, Wrench, Database, BellRing, Volume2 } from 'lucide-react';
 
 interface Props {
   onOpenNewOrder: () => void;
@@ -12,6 +12,7 @@ interface Props {
   autoRefreshEnabled: boolean;
   onToggleAutoRefresh: () => void;
   blockedSendersCount?: number;
+  onTestStatSound?: () => void;
 }
 
 export const Header: React.FC<Props> = ({
@@ -25,6 +26,7 @@ export const Header: React.FC<Props> = ({
   autoRefreshEnabled,
   onToggleAutoRefresh,
   blockedSendersCount = 0,
+  onTestStatSound,
 }) => {
   const [isToolsDropdownOpen, setIsToolsDropdownOpen] = useState(false);
 
@@ -39,21 +41,32 @@ export const Header: React.FC<Props> = ({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-                Clinical Order Tracker
+                STAT Emergency Order Monitor
               </h1>
-              <span className="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                <Radio className="w-3 h-3 animate-pulse text-emerald-600 dark:text-emerald-400" />
-                Hospital Rounds Live
+              <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-800 animate-pulse">
+                <BellRing className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                STAT Sound Alert Active
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">
-              Real-time Telegram AI Order Parser & Round Coordinator
+              Only STAT messages are processed & played with audio. All non-STAT messages are auto-deleted.
             </p>
           </div>
         </div>
 
         {/* Action Controls Header */}
         <div className="flex items-center gap-2 sm:gap-3">
+          {onTestStatSound && (
+            <button
+              onClick={onTestStatSound}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-xs transition-all"
+              title="Test STAT Alarm Audio Tone"
+            >
+              <Volume2 className="w-4 h-4" />
+              <span>Test STAT Sound</span>
+            </button>
+          )}
+
           {/* Auto Refresh indicator & manual refresh */}
           <button
             onClick={onToggleAutoRefresh}

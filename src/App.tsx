@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { ClinicalOrder, FilterState, OrderStatus, SummaryStats } from './types';
+import { ClinicalOrder, FilterState, OrderItem, OrderStatus, SummaryStats } from './types';
 import { Header } from './components/Header';
 import { SummaryStatsWidget } from './components/SummaryStats';
 import { MobileFilters } from './components/MobileFilters';
 import { OrderCard } from './components/OrderCard';
-import { Sidebar } from './components/Sidebar';
+import { PendingQueueTriage } from './components/PendingQueueTriage';
 import { BottomNav } from './components/BottomNav';
 import { NewOrderModal } from './components/NewOrderModal';
 import { WebhookSimulatorModal } from './components/WebhookSimulatorModal';
@@ -12,9 +12,99 @@ import { WebhookDocsModal } from './components/WebhookDocsModal';
 import { ManageBlockedSendersModal } from './components/ManageBlockedSendersModal';
 import { SupabaseSettingsModal } from './components/SupabaseSettingsModal';
 import { orderService } from './services/orderService';
-import { subscribeToSupabaseRealtime } from './services/supabaseOrderService';
+import { subscribeToSupabaseRealtime, deleteSupabaseOrder } from './services/supabaseOrderService';
 import { getBlockedSenders, saveBlockedSenders, isSenderBlocked } from './services/senderService';
-import { ClipboardCheck, RefreshCw, AlertCircle, Sparkles, Filter } from 'lucide-react';
+import { playStatAlarmSound } from './utils/statSound';
+import { isStatMessage } from './utils/statFilter';
+import { ClipboardCheck, RefreshCw, AlertCircle, Sparkles, Filter, Bed, BellRing, ShieldAlert, Trash2 } from 'lucide-react';
+
+// Known raw/unparsed placeholder strings that should never overwrite parsed clinical data
+const NAME_PLACEHOLDERS = [
+  'raw pending message',
+  'patient unassigned',
+  'er patient',
+  'unassigned patient',
+  'pending',
+  'no patient name',
+  'unassigned',
+];
+
+const BED_PLACEHOLDERS = [
+  'unassigned',
+  'bed unassigned',
+  'er bed',
+  'n/a',
+  'unspecified',
+  'port a (default)',
+];
+
+const AGE_SEX_PLACEHOLDERS = ['n/a', 'unspecified', 'na'];
+const BIRTHDAY_PLACEHOLDERS = ['unspecified', 'n/a', 'na'];
+
+function isPlaceholderVal(val: string | undefined | null, placeholders: string[]): boolean {
+  if (!val || !val.trim()) return true;
+  return placeholders.includes(val.trim().toLowerCase());
+}
+
+// Helper to safely merge existing parsed order state with incoming backend/realtime updates without reverting parsed fields
+function mergeOrderData(existing: ClinicalOrder, incoming: ClinicalOrder): ClinicalOrder {
+  const isExistingParsedName = !isPlaceholderVal(existing.patient_name, NAME_PLACEHOLDERS);
+  const isExistingParsedBed = !isPlaceholderVal(existing.bed_number, BED_PLACEHOLDERS);
+
+  // Merge status: protect against reverting In Progress / Done back to Pending
+  let mergedStatus = incoming.status;
+  if (existing.status !== 'Pending' && incoming.status === 'Pending') {
+    mergedStatus = existing.status;
+  }
+
+  // Merge items: use incoming items if available, or fallback to existing items
+  let mergedItems = existing.items;
+  if (incoming.items && incoming.items.length > 0) {
+    mergedItems = incoming.items;
+  }
+
+  const finalName =
+    isExistingParsedName && isPlaceholderVal(incoming.patient_name, NAME_PLACEHOLDERS)
+      ? existing.patient_name
+      : incoming.patient_name || existing.patient_name;
+
+  const finalBed =
+    isExistingParsedBed && isPlaceholderVal(incoming.bed_number, BED_PLACEHOLDERS)
+      ? existing.bed_number
+      : incoming.bed_number || existing.bed_number;
+
+  const finalAgeSex = isPlaceholderVal(incoming.age_sex, AGE_SEX_PLACEHOLDERS)
+    ? existing.age_sex
+    : incoming.age_sex || existing.age_sex;
+
+  const finalBirthday = isPlaceholderVal(incoming.birthday, BIRTHDAY_PLACEHOLDERS)
+    ? existing.birthday
+    : incoming.birthday || existing.birthday;
+
+  const finalCaseNumber =
+    !incoming.case_number || incoming.case_number.length <= 3
+      ? existing.case_number
+      : incoming.case_number;
+
+  const finalOrderedBy =
+    !incoming.ordered_by || incoming.ordered_by === 'Dr. Rounding'
+      ? existing.ordered_by || incoming.ordered_by
+      : incoming.ordered_by;
+
+  return {
+    ...existing,
+    ...incoming,
+    patient_name: finalName,
+    bed_number: finalBed,
+    age_sex: finalAgeSex,
+    birthday: finalBirthday,
+    case_number: finalCaseNumber,
+    ordered_by: finalOrderedBy,
+    status: mergedStatus,
+    items: mergedItems,
+    raw_text: existing.raw_text || incoming.raw_text,
+  };
+}
 
 export default function App() {
   const [orders, setOrders] = useState<ClinicalOrder[]>([]);
@@ -78,7 +168,39 @@ export default function App() {
     if (showIndicator) setIsRefreshing(true);
     try {
       const data = await orderService.getOrders();
-      setOrders(data);
+      // Filter out non-STAT orders and delete non-STAT messages from Supabase right away
+      const statOrders: ClinicalOrder[] = [];
+      for (const order of data) {
+        const isMuted = isSenderBlocked(order.ordered_by, blockedSenders);
+        const hasStat = isStatMessage(order);
+
+        if (hasStat && !isMuted) {
+          statOrders.push(order);
+        } else {
+          // Immediately purge non-STAT or muted message from Supabase so it's deleted right away
+          deleteSupabaseOrder(order.id).catch(() => {});
+        }
+      }
+
+      setOrders((prev) => {
+        if (!prev || prev.length === 0) return statOrders;
+
+        const dataMap = new Map(statOrders.map((item) => [item.id, item]));
+
+        const mergedPrev = prev.map((oldOrder) => {
+          const fresh = dataMap.get(oldOrder.id);
+          if (fresh) {
+            dataMap.delete(oldOrder.id);
+            return mergeOrderData(oldOrder, fresh);
+          }
+          return oldOrder;
+        });
+
+        const newFromData = Array.from(dataMap.values());
+        return [...newFromData, ...mergedPrev].filter(
+          (o) => isStatMessage(o) && !isSenderBlocked(o.ordered_by, blockedSenders)
+        );
+      });
       setError(null);
     } catch (err: any) {
       console.error('Error fetching orders:', err);
@@ -87,25 +209,47 @@ export default function App() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, []);
+  }, [blockedSenders]);
 
-  // Initial load
+  // Initial load & Supabase Real-time listener
   useEffect(() => {
     fetchOrders();
 
-    // 2. Real-time listener for new orders sent from Telegram -> Render -> Supabase
     const unsubscribe = subscribeToSupabaseRealtime({
-      onInsert: (newOrder) => {
+      onInsert: async (newOrder) => {
         console.log('📥 New Real-Time Order Received via Supabase:', newOrder);
+
+        const isMuted = isSenderBlocked(newOrder.ordered_by, blockedSenders);
+        const hasStat = isStatMessage(newOrder);
+
+        // If message does not contain "STAT" or is from muted sender -> DO NOT PROCESS & DELETE RIGHT AWAY!
+        if (!hasStat || isMuted) {
+          console.log(`[STAT Filter] Deleting non-STAT/muted message immediately (${newOrder.id})`);
+          await deleteSupabaseOrder(newOrder.id);
+          return;
+        }
+
+        // STAT message received! Play STAT alarm sound
+        playStatAlarmSound();
+
         setOrders((prev) => {
           if (prev.some((o) => o.id === newOrder.id)) return prev;
           return [newOrder, ...prev];
         });
-        triggerToast(`New real-time order received for ${newOrder.patient_name}`);
+        triggerToast(`🚨 STAT ALARM: New STAT message for ${newOrder.patient_name || newOrder.bed_number}!`);
       },
       onUpdate: (updatedOrder) => {
+        const isMuted = isSenderBlocked(updatedOrder.ordered_by, blockedSenders);
+        const hasStat = isStatMessage(updatedOrder);
+
+        if (!hasStat || isMuted) {
+          deleteSupabaseOrder(updatedOrder.id).catch(() => {});
+          setOrders((prev) => prev.filter((o) => o.id !== updatedOrder.id));
+          return;
+        }
+
         setOrders((prev) =>
-          prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o))
+          prev.map((o) => (o.id === updatedOrder.id ? mergeOrderData(o, updatedOrder) : o))
         );
       },
       onDelete: (deletedId) => {
@@ -116,7 +260,7 @@ export default function App() {
     return () => {
       unsubscribe();
     };
-  }, [fetchOrders]);
+  }, [fetchOrders, blockedSenders]);
 
   // Live Sync / Polling interval (5 seconds)
   useEffect(() => {
@@ -131,7 +275,7 @@ export default function App() {
   const handleUpdateStatus = async (id: string, status: OrderStatus) => {
     try {
       const updated = await orderService.updateStatus(id, status);
-      setOrders((prev) => prev.map((o) => (o.id === id ? updated : o)));
+      setOrders((prev) => prev.map((o) => (o.id === id ? mergeOrderData(o, updated) : o)));
     } catch (err: any) {
       console.error('Error updating status:', err);
       alert(`Could not update status: ${err?.message || 'Unknown error'}`);
@@ -140,24 +284,58 @@ export default function App() {
 
   // Toggle single item in checklist
   const handleToggleItem = async (orderId: string, itemId: string, isCompleted: boolean) => {
+    // Immediate optimistic local UI update for instantaneous responsiveness
+    setOrders((prev) =>
+      prev.map((o) => {
+        if (o.id !== orderId) return o;
+        const updatedItems = o.items.map((it) =>
+          it.id === itemId ? { ...it, is_completed: isCompleted } : it
+        );
+        const allCompleted = updatedItems.length > 0 && updatedItems.every((it) => it.is_completed);
+        let newStatus = o.status;
+        if (allCompleted) newStatus = 'Done';
+        else if (o.status === 'Done') newStatus = 'In Progress';
+        return {
+          ...o,
+          items: updatedItems,
+          status: newStatus,
+          updated_at: Date.now(),
+        };
+      })
+    );
+
     try {
       const updated = await orderService.toggleItem(orderId, itemId, isCompleted);
-      setOrders((prev) => prev.map((o) => (o.id === orderId ? updated : o)));
+      setOrders((prev) =>
+        prev.map((o) => (o.id === orderId ? mergeOrderData(o, updated) : o))
+      );
     } catch (err: any) {
       console.error('Error toggling item:', err);
-      alert('Could not update order item');
     }
   };
 
   // Complete all items in tile
   const handleCompleteAllItems = async (orderId: string) => {
+    setOrders((prev) =>
+      prev.map((o) => {
+        if (o.id !== orderId) return o;
+        return {
+          ...o,
+          status: 'Done',
+          items: o.items.map((it) => ({ ...it, is_completed: true })),
+          updated_at: Date.now(),
+        };
+      })
+    );
+
     try {
       const updated = await orderService.completeAllItems(orderId);
-      setOrders((prev) => prev.map((o) => (o.id === orderId ? updated : o)));
+      setOrders((prev) =>
+        prev.map((o) => (o.id === orderId ? mergeOrderData(o, updated) : o))
+      );
       triggerToast('All order items checked & tile completed!');
     } catch (err: any) {
       console.error('Error completing all items:', err);
-      alert('Could not complete all items');
     }
   };
 
@@ -175,17 +353,37 @@ export default function App() {
   // Handle creating new order from text message
   const handleCreateOrderFromText = async (rawText: string) => {
     const created = await orderService.createOrderFromText(rawText);
+    const hasStat = isStatMessage(created) || isStatMessage({ raw_text: rawText });
+    const isMuted = isSenderBlocked(created.ordered_by, blockedSenders);
+
+    if (!hasStat || isMuted) {
+      await deleteSupabaseOrder(created.id);
+      triggerToast('⚠️ Non-STAT message deleted immediately! Only messages with "STAT" are kept.');
+      return;
+    }
+
+    playStatAlarmSound();
     setOrders((prev) => [created, ...prev]);
-    triggerToast(`Order tile created for ${created.bed_number}`);
+    triggerToast(`🚨 STAT Alarm Triggered for ${created.bed_number}!`);
   };
 
   // Handle Order Simulated via Webhook Simulator
-  const handleOrderSimulated = (newOrder: ClinicalOrder) => {
+  const handleOrderSimulated = async (newOrder: ClinicalOrder) => {
+    const hasStat = isStatMessage(newOrder);
+    const isMuted = isSenderBlocked(newOrder.ordered_by, blockedSenders);
+
+    if (!hasStat || isMuted) {
+      await deleteSupabaseOrder(newOrder.id);
+      triggerToast('⚠️ Non-STAT message deleted immediately! Only messages with "STAT" are processed.');
+      return;
+    }
+
+    playStatAlarmSound();
     setOrders((prev) => {
       if (prev.some((o) => o.id === newOrder.id)) return prev;
       return [newOrder, ...prev];
     });
-    triggerToast(`⚡ Telegram Message Parsed for ${newOrder.bed_number}!`);
+    triggerToast(`🚨 STAT Emergency Order Received for ${newOrder.bed_number}!`);
   };
 
   // Reset seed sample data
@@ -233,15 +431,58 @@ export default function App() {
     };
   }, [orders]);
 
-  // Dedicated Pending Orders list for top triage section
-  const pendingOrders = useMemo(() => {
-    return orders.filter((o) => o.status === 'Pending');
-  }, [orders]);
+  // Handle Approve action on Raw Pending Order (Displays message as-is without Gemini AI)
+  const handleApproveAndParse = async (id: string) => {
+    const target = orders.find((o) => o.id === id);
+    const rawText = target?.raw_text || (target?.patient_name !== 'Raw Pending Message' ? target?.patient_name : '');
 
-  // Filtered & Sorted Orders
-  const filteredOrders = useMemo(() => {
+    // 1. Immediate optimistic UI update so tile moves out of Pending Queue instantly
+    setOrders((prev) =>
+      prev.map((o) => (o.id === id ? { ...o, status: 'In Progress' as const } : o))
+    );
+
+    try {
+      const updated = await orderService.approveAndParseOrder(id, rawText, target);
+      const activeOrder = { ...updated, status: 'In Progress' as const };
+      setOrders((prev) => prev.map((o) => (o.id === id ? activeOrder : o)));
+      const locationLabel =
+        updated.bed_number && !updated.bed_number.toLowerCase().includes('unassigned')
+          ? updated.bed_number
+          : updated.patient_name || 'Patient';
+      triggerToast(`✅ Approved & Displayed order for ${locationLabel}!`);
+    } catch (err: any) {
+      console.error('Error in approve order:', err);
+      alert(`Could not approve order: ${err?.message || 'Unknown error'}`);
+    }
+  };
+
+  // Delete all pending messages in inbox
+  const handleDeleteAllPending = async () => {
+    const pendingToClear = orders.filter((o) => o.status === 'Pending');
+    if (pendingToClear.length === 0) return;
+
+    const idsToDelete = pendingToClear.map((o) => o.id);
+
+    // 1. Optimistically purge all pending orders from state
+    setOrders((prev) => prev.filter((o) => o.status !== 'Pending'));
+
+    // 2. Parallel deletion across Supabase, Express API & localStorage
+    await Promise.allSettled(idsToDelete.map((id) => orderService.deleteOrder(id)));
+
+    triggerToast(`🗑️ Cleared all ${idsToDelete.length} pending messages!`);
+  };
+
+  // Dedicated Raw Pending Orders Inbox list
+  const pendingOrders = useMemo(() => {
+    return orders.filter((o) => o.status === 'Pending' && !isSenderBlocked(o.ordered_by, blockedSenders));
+  }, [orders, blockedSenders]);
+
+  // Filtered & Sorted Active Orders (Non-Pending)
+  const filteredActiveOrders = useMemo(() => {
     return orders
       .filter((o) => {
+        if (o.status === 'Pending') return false;
+
         // Muted sender filter
         if (!showBlockedOrders && isSenderBlocked(o.ordered_by, blockedSenders)) {
           return false;
@@ -278,6 +519,17 @@ export default function App() {
       });
   }, [orders, filters, blockedSenders, showBlockedOrders]);
 
+  // Group Active Tracked Orders by Bed / Location
+  const activeOrdersByBed = useMemo(() => {
+    const groups: Record<string, ClinicalOrder[]> = {};
+    filteredActiveOrders.forEach((o) => {
+      const bedKey = o.bed_number || 'Unassigned Bed';
+      if (!groups[bedKey]) groups[bedKey] = [];
+      groups[bedKey].push(o);
+    });
+    return groups;
+  }, [filteredActiveOrders]);
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans antialiased pb-20 lg:pb-8">
       {/* Toast Banner */}
@@ -300,25 +552,40 @@ export default function App() {
         autoRefreshEnabled={autoRefreshEnabled}
         onToggleAutoRefresh={() => setAutoRefreshEnabled(!autoRefreshEnabled)}
         blockedSendersCount={blockedSenders.length}
+        onTestStatSound={() => playStatAlarmSound()}
       />
 
       {/* Main Content Layout */}
-      <div className="flex-1 max-w-7xl w-full mx-auto flex">
-        {/* Desktop Sidebar Navigation */}
-        <Sidebar
-          filters={filters}
-          onFilterChange={handleFilterChange}
-          onOpenSimulator={() => setIsSimulatorOpen(true)}
-          onOpenWebhookDocs={() => setIsWebhookDocsOpen(true)}
-          onOpenManageSenders={() => setIsManageSendersOpen(true)}
-          onResetSeedData={handleResetSeedData}
-          totalOrdersCount={orders.length}
-          pendingCount={summaryStats.totalPending}
-          blockedSendersCount={blockedSenders.length}
-        />
-
+      <div className="flex-1 max-w-7xl w-full mx-auto">
         {/* Main Dashboard Panel */}
-        <main className="flex-1 p-4 sm:p-6 min-w-0">
+        <main className="p-4 sm:p-6 min-w-0">
+          {/* STAT Emergency Mode Notification Banner */}
+          <div className="mb-5 p-4 rounded-2xl bg-gradient-to-r from-rose-600 to-amber-600 text-white shadow-lg border border-rose-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-white/20 backdrop-blur shrink-0">
+                <BellRing className="w-6 h-6 text-white animate-bounce" />
+              </div>
+              <div>
+                <h3 className="text-sm sm:text-base font-extrabold flex items-center gap-2">
+                  <span>STAT EMERGENCY FILTER ACTIVE</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-white text-rose-700 font-bold uppercase tracking-wide">
+                    Strict Mode
+                  </span>
+                </h3>
+                <p className="text-xs text-rose-100 mt-0.5">
+                  Only messages containing the word <strong>&quot;STAT&quot;</strong> generate audio alerts and display on screen. All non-STAT and muted messages are deleted from Supabase immediately.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => playStatAlarmSound()}
+              className="px-3.5 py-1.5 rounded-xl bg-white text-rose-700 hover:bg-rose-50 font-bold text-xs shrink-0 shadow-xs flex items-center gap-1.5 transition-all"
+            >
+              <BellRing className="w-3.5 h-3.5" />
+              <span>Test Alarm Tone</span>
+            </button>
+          </div>
+
           {/* Summary Statistic Widgets */}
           <SummaryStatsWidget
             stats={summaryStats}
@@ -326,21 +593,30 @@ export default function App() {
             onSelectStatus={(st) => handleFilterChange({ status: st as OrderStatus | 'All' })}
           />
 
+          {/* Section 1: Pending Inbox (Raw Feed) */}
+          <PendingQueueTriage
+            pendingOrders={pendingOrders}
+            onApproveAndParse={handleApproveAndParse}
+            onDismiss={handleDeleteOrder}
+            onMuteSender={handleBlockSender}
+            onDeleteAllPending={handleDeleteAllPending}
+          />
+
           {/* Mobile Search & Filter Bar */}
           <MobileFilters
             filters={filters}
             onFilterChange={handleFilterChange}
             totalCount={orders.length}
-            filteredCount={filteredOrders.length}
+            filteredCount={filteredActiveOrders.length}
           />
 
           {/* Desktop Search & Sort Toolbar */}
           <div className="hidden sm:flex items-center justify-between gap-4 mb-4 pt-1">
             <div className="flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-200">
-              <ClipboardCheck className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-              <span>Round Orders Grid</span>
-              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                {filteredOrders.length}
+              <ClipboardCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span>Active Tracked Orders (Grouped by Bed / Location)</span>
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                {filteredActiveOrders.length}
               </span>
             </div>
 
@@ -383,15 +659,15 @@ export default function App() {
                 Retry Connection
               </button>
             </div>
-          ) : filteredOrders.length === 0 ? (
+          ) : filteredActiveOrders.length === 0 ? (
             /* Empty State */
-            <div className="py-16 px-4 text-center rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 my-4 shadow-2xs">
-              <ClipboardCheck className="w-12 h-12 text-slate-300 dark:text-slate-700 mx-auto mb-3" />
-              <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">
-                No orders match your filter criteria
+            <div className="py-12 px-4 text-center rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 my-4 shadow-2xs">
+              <ClipboardCheck className="w-10 h-10 text-slate-300 dark:text-slate-700 mx-auto mb-2" />
+              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                No active tracked orders found
               </h3>
               <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 mb-4">
-                Try clearing search terms or simulate a new Telegram message order.
+                Approve incoming items from the Pending Inbox above or simulate a new Telegram message.
               </p>
               <div className="flex flex-wrap items-center justify-center gap-2">
                 <button
@@ -403,7 +679,7 @@ export default function App() {
                   }
                   className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
                 >
-                  Clear All Filters
+                  Clear Filters
                 </button>
                 <button
                   onClick={() => setIsSimulatorOpen(true)}
@@ -414,19 +690,33 @@ export default function App() {
               </div>
             </div>
           ) : (
-            /* Order Cards Grid */
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-              {filteredOrders.map((order) => (
-                <OrderCard
-                  key={order.id}
-                  order={order}
-                  onUpdateStatus={handleUpdateStatus}
-                  onToggleItem={handleToggleItem}
-                  onCompleteAllItems={handleCompleteAllItems}
-                  onDelete={handleDeleteOrder}
-                  isBlockedSender={isSenderBlocked(order.ordered_by, blockedSenders)}
-                  onToggleBlockSender={handleToggleBlockSender}
-                />
+            /* Active Tracked Orders Grouped by Bed / Location */
+            <div className="space-y-6">
+              {(Object.entries(activeOrdersByBed) as [string, ClinicalOrder[]][]).map(([bedName, bedOrders]) => (
+                <div key={bedName} className="space-y-3">
+                  <div className="flex items-center gap-2 bg-slate-200/80 dark:bg-slate-800/80 px-3 py-1.5 rounded-xl text-xs font-black text-slate-800 dark:text-slate-200 w-fit shadow-2xs">
+                    <Bed className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    <span>Location: {bedName}</span>
+                    <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-full border border-slate-300 dark:border-slate-700">
+                      {bedOrders.length} {bedOrders.length === 1 ? 'Card' : 'Cards'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {bedOrders.map((order) => (
+                      <OrderCard
+                        key={order.id}
+                        order={order}
+                        onUpdateStatus={handleUpdateStatus}
+                        onToggleItem={handleToggleItem}
+                        onCompleteAllItems={handleCompleteAllItems}
+                        onDelete={handleDeleteOrder}
+                        isBlockedSender={isSenderBlocked(order.ordered_by, blockedSenders)}
+                        onToggleBlockSender={handleToggleBlockSender}
+                      />
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           )}

@@ -21,6 +21,8 @@ import {
   UserX,
   VolumeX,
   Volume2,
+  Copy,
+  Check,
 } from 'lucide-react';
 
 interface Props {
@@ -46,10 +48,28 @@ export const OrderCard: React.FC<Props> = ({
   const [loadingItemId, setLoadingItemId] = useState<string | null>(null);
   const [isCompletingAll, setIsCompletingAll] = useState(false);
   const [showRawText, setShowRawText] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const completedCount = order.items.filter((i) => i.is_completed).length;
   const totalItems = order.items.length;
   const isAllCompleted = totalItems > 0 && completedCount === totalItems;
+
+  const handleCopyTile = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const loc = order.bed_number ? order.bed_number.replace(/^Bed\s+/i, '') : 'ER Bed';
+    const headerLine = `${loc} ${order.patient_name} | ${order.age_sex}`;
+    const caseNumberClean = order.case_number ? order.case_number.replace(/^CN-?/i, '') : '';
+    const caseLine = `CN: ${caseNumberClean}`;
+    const itemsLines = order.items
+      .map((item) => `${item.is_completed ? '✅' : '⭕'}${item.item_text.trim()}`)
+      .join('\n');
+
+    const fullText = `${headerLine}\n${caseLine}\n${itemsLines}`;
+
+    navigator.clipboard.writeText(fullText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const handleStatusChange = async (newStatus: OrderStatus) => {
     setLoadingStatus(newStatus);
@@ -144,164 +164,154 @@ export const OrderCard: React.FC<Props> = ({
             </div>
           </div>
 
-          <div>{getStatusBadge()}</div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleCopyTile}
+              className={`p-1.5 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs ${
+                copied
+                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
+              }`}
+              title="Copy formatted progress or completed tile for clinical handovers"
+            >
+              {copied ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span>Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
+                  <span>Copy Tile</span>
+                </>
+              )}
+            </button>
+            {getStatusBadge()}
+          </div>
         </div>
 
-        {/* Structured Patient Demographics Grid arranged by Gemini */}
-        <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 mb-4 grid grid-cols-2 gap-2 text-xs">
-          {/* Patient Name */}
-          <div className="col-span-2 flex items-center gap-2 font-bold text-slate-900 dark:text-white pb-1.5 border-b border-slate-200/60 dark:border-slate-700/60">
-            <User className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
-            <span className="text-sm font-black truncate">{order.patient_name}</span>
-          </div>
-
-          {/* Ordered By */}
-          <div className="col-span-2 sm:col-span-1 flex items-center justify-between gap-1 text-slate-600 dark:text-slate-300">
-            <div className="flex items-center gap-1.5 truncate">
-              <UserCheck className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <span className="text-slate-400">Ordered:</span>
-              <span className="font-bold truncate">{order.ordered_by}</span>
+        {/* Single Out Sender Banner with Mute option */}
+        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 mb-3.5 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="p-1.5 rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 shrink-0">
+              <UserCheck className="w-4 h-4" />
             </div>
-            {onToggleBlockSender && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleBlockSender(order.ordered_by);
-                }}
-                className={`px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 transition-all shrink-0 ${
-                  isBlockedSender
-                    ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
-                    : 'text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40'
-                }`}
-                title={
-                  isBlockedSender
-                    ? `Click to allow messages from ${order.ordered_by}`
-                    : `Click to mute/block messages from ${order.ordered_by}`
-                }
-              >
-                {isBlockedSender ? (
-                  <>
-                    <VolumeX className="w-3 h-3 text-rose-500" />
-                    <span>Muted</span>
-                  </>
-                ) : (
-                  <>
-                    <UserX className="w-3 h-3" />
-                    <span className="hidden group-hover:inline">Mute Sender</span>
-                  </>
-                )}
-              </button>
-            )}
+            <div className="min-w-0">
+              <span className="text-[11px] font-semibold text-slate-400 block uppercase tracking-wider">Sender</span>
+              <span className="text-sm font-bold text-slate-900 dark:text-white truncate block">
+                {order.ordered_by || 'Telegram Sender'}
+              </span>
+            </div>
           </div>
 
-          {/* Age / Sex */}
-          <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-            <span className="text-slate-400">Age/Sex:</span>
-            <span className="font-bold font-mono">{order.age_sex}</span>
-          </div>
+          {onToggleBlockSender && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleBlockSender(order.ordered_by || 'Telegram Sender');
+              }}
+              className={`px-2.5 py-1 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all shrink-0 ${
+                isBlockedSender
+                  ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
+                  : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:text-rose-600 dark:hover:text-rose-400 border border-slate-200 dark:border-slate-700 shadow-2xs'
+              }`}
+              title={
+                isBlockedSender
+                  ? `Unmute messages from ${order.ordered_by}`
+                  : `Mute all future messages from ${order.ordered_by}`
+              }
+            >
+              {isBlockedSender ? (
+                <>
+                  <VolumeX className="w-3.5 h-3.5 text-rose-500" />
+                  <span>Muted</span>
+                </>
+              ) : (
+                <>
+                  <UserX className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Mute Sender</span>
+                </>
+              )}
+            </button>
+          )}
+        </div>
 
-          {/* Birthday */}
-          <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-            <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            <span className="text-slate-400">DOB:</span>
-            <span className="font-bold font-mono">{order.birthday}</span>
-          </div>
-
-          {/* Case Number */}
-          <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-            <FileCheck className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            <span className="text-slate-400">Case #:</span>
-            <span className="font-bold font-mono text-blue-600 dark:text-blue-400">{order.case_number}</span>
+        {/* Message As Is Display */}
+        <div className="mb-4">
+          <div className="p-3.5 rounded-xl bg-slate-900 text-slate-100 dark:bg-slate-950 dark:text-slate-100 border border-slate-800 shadow-xs">
+            <div className="text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1">
+              <MessageSquareText className="w-3.5 h-3.5 text-amber-400" />
+              <span>STAT Message Content:</span>
+            </div>
+            <p className="text-sm sm:text-base font-medium leading-relaxed whitespace-pre-wrap font-sans text-slate-100 break-words">
+              {order.raw_text || order.patient_name}
+            </p>
           </div>
         </div>
 
-        {/* Orders Checklist Section */}
-        <div className="mb-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-blue-500" />
-              Clinical Orders Checklist ({completedCount}/{totalItems})
-            </span>
+        {/* Action Checklist items if present */}
+        {order.items.length > 0 && (
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                Items / Status ({completedCount}/{totalItems})
+              </span>
 
-            {/* Check All / Complete All Button */}
-            {!isAllCompleted && (
-              <button
-                disabled={isCompletingAll}
-                onClick={handleCheckAll}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-extrabold bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs active:scale-95 transition-all disabled:opacity-50"
-                title="Mark all orders in this tile as completed at once"
-              >
-                {isCompletingAll ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <CheckCheck className="w-3.5 h-3.5" />
-                )}
-                <span>Check Everything</span>
-              </button>
-            )}
-          </div>
-
-          {/* Checklist Items List */}
-          <div className="space-y-1.5">
-            {order.items.map((item) => {
-              const isItemLoading = loadingItemId === item.id;
-              return (
-                <div
-                  key={item.id}
-                  onClick={() => !isItemLoading && handleCheckItem(item.id, item.is_completed)}
-                  className={`flex items-start gap-2.5 p-2.5 rounded-xl border transition-all cursor-pointer select-none ${
-                    item.is_completed
-                      ? 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/40 text-slate-500 dark:text-slate-400'
-                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 hover:border-blue-300 dark:hover:border-blue-700'
-                  }`}
+              {!isAllCompleted && (
+                <button
+                  disabled={isCompletingAll}
+                  onClick={handleCheckAll}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs active:scale-95 transition-all disabled:opacity-50"
                 >
-                  <button
-                    type="button"
-                    className="mt-0.5 shrink-0 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400"
-                  >
-                    {isItemLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                    ) : item.is_completed ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                    ) : (
-                      <Circle className="w-4 h-4" />
-                    )}
-                  </button>
-                  <span
-                    className={`text-xs sm:text-sm font-semibold leading-snug break-words ${
-                      item.is_completed ? 'line-through text-slate-400 dark:text-slate-500' : ''
+                  {isCompletingAll ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <CheckCheck className="w-3.5 h-3.5" />
+                  )}
+                  <span>Check All</span>
+                </button>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              {order.items.map((item) => {
+                const isItemLoading = loadingItemId === item.id;
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => !isItemLoading && handleCheckItem(item.id, item.is_completed)}
+                    className={`flex items-start gap-2.5 p-2 rounded-xl border transition-all cursor-pointer select-none ${
+                      item.is_completed
+                        ? 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/40 text-slate-500 dark:text-slate-400'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 hover:border-blue-300 dark:hover:border-blue-700'
                     }`}
                   >
-                    {item.item_text}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Optional Raw Telegram Text Viewer */}
-        {order.raw_text && (
-          <div className="mb-4">
-            <button
-              onClick={() => setShowRawText(!showRawText)}
-              className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-            >
-              <MessageSquareText className="w-3 h-3" />
-              <span>{showRawText ? 'Hide Raw Telegram Text' : 'View Raw Telegram Text'}</span>
-              {showRawText ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-            </button>
-            {showRawText && (
-              <div className="mt-1.5 p-2.5 rounded-xl bg-slate-900 text-slate-300 font-mono text-xs leading-relaxed border border-slate-800">
-                &quot;{order.raw_text}&quot;
-                {order.topic_id && (
-                  <div className="mt-1 text-[10px] text-blue-400 font-sans">
-                    Topic ID: #{order.topic_id}
+                    <button
+                      type="button"
+                      className="mt-0.5 shrink-0 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400"
+                    >
+                      {isItemLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                      ) : item.is_completed ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      ) : (
+                        <Circle className="w-4 h-4" />
+                      )}
+                    </button>
+                    <span
+                      className={`text-xs sm:text-sm font-semibold leading-snug break-words ${
+                        item.is_completed ? 'line-through text-slate-400 dark:text-slate-500' : ''
+                      }`}
+                    >
+                      {item.item_text}
+                    </span>
                   </div>
-                )}
-              </div>
-            )}
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

@@ -30,18 +30,73 @@ export function parseSupabaseRow(row: any): ClinicalOrder {
     ? new Date(row.created_at).getTime()
     : Date.now();
 
-  const status: OrderStatus = ['Pending', 'In Progress', 'Done'].includes(row.status)
-    ? row.status
-    : 'Pending';
+  const normStatus = (row.status || '').toString().trim().toLowerCase();
+  let status: OrderStatus = 'Pending';
+  if (normStatus === 'done' || normStatus === 'completed') {
+    status = 'Done';
+  } else if (
+    normStatus === 'in progress' ||
+    normStatus === 'in_progress' ||
+    normStatus === 'active' ||
+    normStatus === 'active tracked' ||
+    normStatus === 'approved' ||
+    normStatus === 'processing'
+  ) {
+    status = 'In Progress';
+  } else if (normStatus === 'pending') {
+    status = 'Pending';
+  } else if (['Pending', 'In Progress', 'Done'].includes(row.status)) {
+    status = row.status as OrderStatus;
+  }
+
+  const rawPatientName = row.patient_name;
+  const isPlaceholderName =
+    !rawPatientName ||
+    rawPatientName === 'Raw Pending Message' ||
+    rawPatientName === 'Patient Unassigned';
+  const patient_name = isPlaceholderName ? parsed.patient_name : rawPatientName;
+
+  const rawBed = row.bed_number;
+  const bed_number =
+    !rawBed || rawBed === 'Unassigned' || rawBed === 'Bed Unassigned'
+      ? parsed.bed_number
+      : rawBed;
+
+  const rawSenderCandidate =
+    row.sender ||
+    row.sender_name ||
+    row.ordered_by ||
+    row.from_user ||
+    row.username ||
+    row.author ||
+    row.doctor ||
+    row.created_by ||
+    row.telegram_user ||
+    row.user_name ||
+    row.user ||
+    row.from ||
+    row.sender_username;
+
+  let finalSender = (rawSenderCandidate && String(rawSenderCandidate).trim() !== 'null' && String(rawSenderCandidate).trim() !== 'undefined')
+    ? String(rawSenderCandidate).trim()
+    : null;
+
+  if (!finalSender) {
+    if (parsed.ordered_by && parsed.ordered_by !== 'Dr. Rounding') {
+      finalSender = parsed.ordered_by;
+    } else {
+      finalSender = 'Telegram Sender';
+    }
+  }
 
   return {
     id: String(row.id || `sb-${Date.now()}`),
-    patient_name: row.patient_name || parsed.patient_name,
-    age_sex: row.age_sex || parsed.age_sex,
-    birthday: row.birthday || parsed.birthday,
-    bed_number: row.bed_number || parsed.bed_number,
+    patient_name,
+    age_sex: row.age_sex && row.age_sex !== 'N/A' ? row.age_sex : parsed.age_sex,
+    birthday: row.birthday && row.birthday !== 'Unspecified' ? row.birthday : parsed.birthday,
+    bed_number,
     case_number: row.case_number || parsed.case_number,
-    ordered_by: row.ordered_by || parsed.ordered_by,
+    ordered_by: finalSender,
     status,
     items,
     raw_text: rawText,
@@ -76,18 +131,15 @@ export async function fetchSupabaseOrders(): Promise<ClinicalOrder[] | null> {
   return null;
 }
 
-export async function insertSupabaseOrder(rawText: string): Promise<ClinicalOrder | null> {
+export async function insertSupabaseOrder(rawText: string, senderName?: string): Promise<ClinicalOrder | null> {
   const client = getSupabaseClient();
   if (!client) return null;
 
   try {
-    const parsed = fallbackParseMessage(rawText);
     const payload = {
       text: rawText,
-      patient_name: parsed.patient_name,
-      age_sex: parsed.age_sex,
-      bed_number: parsed.bed_number,
-      ordered_by: parsed.ordered_by,
+      patient_name: 'Raw Pending Message',
+      ordered_by: senderName || 'Telegram User',
       status: 'Pending',
       created_at: new Date().toISOString(),
     };
@@ -110,6 +162,86 @@ export async function insertSupabaseOrder(rawText: string): Promise<ClinicalOrde
   }
 
   return null;
+}
+
+export async function updateSupabaseOrder(id: string, updates: Record<string, any>): Promise<ClinicalOrder | null> {
+  const client = getSupabaseClient();
+  if (!client) return null;
+
+  const isNumericStr = /^\d+$/.test(String(id));
+  const numericId = isNumericStr ? parseInt(String(id), 10) : null;
+
+  const execUpdate = async (filterId: string | number, payload: Record<string, any>) => {
+    return await client
+      .from('orders')
+      .update(payload)
+      .eq('id', filterId)
+      .select();
+  };
+
+  try {
+    // 1. Try full payload with string ID or numeric ID
+    let { data, error } = await execUpdate(id, updates);
+    if ((error || !data || data.length === 0) && numericId !== null) {
+      const res = await execUpdate(numericId, updates);
+      if (res.data && res.data[0]) {
+        data = res.data;
+        error = res.error;
+      }
+    }
+
+    if (!error && data && data[0]) {
+      return parseSupabaseRow(data[0]);
+    }
+
+    // 2. Try minimal core columns fallback
+    const coreUpdates: Record<string, any> = {};
+    if (updates.status) coreUpdates.status = updates.status;
+    if (updates.patient_name) coreUpdates.patient_name = updates.patient_name;
+    if (updates.ordered_by) coreUpdates.ordered_by = updates.ordered_by;
+
+    let fallbackRes = await execUpdate(id, coreUpdates);
+    if ((fallbackRes.error || !fallbackRes.data || fallbackRes.data.length === 0) && numericId !== null) {
+      fallbackRes = await execUpdate(numericId, coreUpdates);
+    }
+
+    if (!fallbackRes.error && fallbackRes.data && fallbackRes.data[0]) {
+      return parseSupabaseRow(fallbackRes.data[0]);
+    }
+
+    // 3. Fallback to updating ONLY status
+    if (updates.status) {
+      let statusRes = await execUpdate(id, { status: updates.status });
+      if ((statusRes.error || !statusRes.data || statusRes.data.length === 0) && numericId !== null) {
+        statusRes = await execUpdate(numericId, { status: updates.status });
+      }
+
+      if (!statusRes.error && statusRes.data && statusRes.data[0]) {
+        return parseSupabaseRow(statusRes.data[0]);
+      }
+    }
+  } catch (err) {
+    console.warn('Supabase update exception:', err);
+  }
+
+  return null;
+}
+
+export async function deleteSupabaseOrder(id: string): Promise<boolean> {
+  const client = getSupabaseClient();
+  if (!client) return false;
+
+  try {
+    const { error } = await client.from('orders').delete().eq('id', id);
+    if (error) {
+      console.warn('Supabase delete order error:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn('Supabase delete exception:', err);
+    return false;
+  }
 }
 
 export function subscribeToSupabaseRealtime(callbacks: {
