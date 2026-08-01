@@ -133,52 +133,21 @@ export const orderService = {
     const current = getLocalOrders();
     const targetOrder = existingOrder || current.find((o) => o.id === id);
 
-    let textToDisplay = rawTextOverride || targetOrder?.raw_text || '';
-    if (!textToDisplay || textToDisplay === 'Raw Pending Message') {
-      if (targetOrder?.raw_text) {
-        textToDisplay = targetOrder.raw_text;
-      } else if (targetOrder?.patient_name && targetOrder.patient_name !== 'Raw Pending Message') {
-        textToDisplay = targetOrder.patient_name;
-      } else {
-        textToDisplay = 'STAT Order';
-      }
-    }
-
-    // Extract bed number if present or keep existing / fallback to ER Bed
-    let bed = targetOrder?.bed_number && targetOrder.bed_number !== 'Unassigned' ? targetOrder.bed_number : '';
-    if (!bed) {
-      const bedMatch = textToDisplay.match(/\b(Bed\s+[\w\d]+|ICU\s+[\w\d]+|\d{3}[A-Z]?)\b/i);
-      bed = bedMatch ? bedMatch[0] : 'ER Bed';
-    }
-
-    const patientName = targetOrder?.patient_name && targetOrder.patient_name !== 'Raw Pending Message'
-      ? targetOrder.patient_name
-      : (textToDisplay.length > 45 ? textToDisplay.slice(0, 45) + '...' : textToDisplay);
-
-    const orderItems: OrderItem[] = (targetOrder?.items && targetOrder.items.length > 0)
-      ? targetOrder.items
-      : [{
-          id: `it-${Date.now().toString(36)}-0`,
-          item_text: textToDisplay,
-          is_completed: false,
-        }];
+    const textToDisplay = rawTextOverride || targetOrder?.raw_text || targetOrder?.patient_name || 'STAT Message';
+    const bed = targetOrder?.bed_number || 'ER Bed';
+    const patientName = targetOrder?.patient_name || textToDisplay;
 
     const updatePayload = {
       patient_name: patientName,
       bed_number: bed,
       status: 'In Progress' as OrderStatus,
-      items: orderItems,
       raw_text: textToDisplay,
       updated_at: Date.now(),
     };
 
     // 1. Try updating Supabase
     const sbUpdated = await updateSupabaseOrder(id, {
-      patient_name: patientName,
-      bed_number: bed,
       status: 'In Progress',
-      items: orderItems,
-      raw_text: textToDisplay,
     });
 
     if (sbUpdated) {
@@ -202,9 +171,9 @@ export const orderService = {
         birthday: targetOrder?.birthday || 'Unspecified',
         bed_number: bed,
         case_number: targetOrder?.case_number || `CN-${Math.floor(10000 + Math.random() * 90000)}`,
-        ordered_by: targetOrder?.ordered_by || 'Dr. Rounding',
+        ordered_by: targetOrder?.ordered_by || 'Telegram Sender',
         status: 'In Progress',
-        items: orderItems,
+        items: targetOrder?.items || [],
         raw_text: textToDisplay,
         timestamp: targetOrder?.timestamp || new Date().toISOString(),
         created_at: targetOrder?.created_at || Date.now(),

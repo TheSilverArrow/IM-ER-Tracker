@@ -21,8 +21,6 @@ import {
   UserX,
   VolumeX,
   Volume2,
-  Copy,
-  Check,
 } from 'lucide-react';
 
 interface Props {
@@ -48,28 +46,10 @@ export const OrderCard: React.FC<Props> = ({
   const [loadingItemId, setLoadingItemId] = useState<string | null>(null);
   const [isCompletingAll, setIsCompletingAll] = useState(false);
   const [showRawText, setShowRawText] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   const completedCount = order.items.filter((i) => i.is_completed).length;
   const totalItems = order.items.length;
   const isAllCompleted = totalItems > 0 && completedCount === totalItems;
-
-  const handleCopyTile = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const loc = order.bed_number ? order.bed_number.replace(/^Bed\s+/i, '') : 'ER Bed';
-    const headerLine = `${loc} ${order.patient_name} | ${order.age_sex}`;
-    const caseNumberClean = order.case_number ? order.case_number.replace(/^CN-?/i, '') : '';
-    const caseLine = `CN: ${caseNumberClean}`;
-    const itemsLines = order.items
-      .map((item) => `${item.is_completed ? '✅' : '⭕'}${item.item_text.trim()}`)
-      .join('\n');
-
-    const fullText = `${headerLine}\n${caseLine}\n${itemsLines}`;
-
-    navigator.clipboard.writeText(fullText);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   const handleStatusChange = async (newStatus: OrderStatus) => {
     setLoadingStatus(newStatus);
@@ -98,14 +78,13 @@ export const OrderCard: React.FC<Props> = ({
     }
   };
 
-  const handleDelete = async () => {
-    if (confirm(`Remove clinical order tile for ${order.patient_name}?`)) {
-      setLoadingStatus('delete');
-      try {
-        await onDelete(order.id);
-      } finally {
-        setLoadingStatus(null);
-      }
+  const handleDelete = async (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setLoadingStatus('delete');
+    try {
+      await onDelete(order.id);
+    } finally {
+      setLoadingStatus(null);
     }
   };
 
@@ -147,98 +126,68 @@ export const OrderCard: React.FC<Props> = ({
       }`}
     >
       <div>
-        {/* Top Header: Location/Bed & Status Badge */}
-        <div className="flex items-start justify-between gap-2 pb-3 mb-3 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/80 dark:text-blue-400">
-              <Bed className="w-5 h-5" />
+        {/* Top Header: Sender Name with Mute Button & Controls (Time, Copy, Status) */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-3 mb-3 border-b border-slate-100 dark:border-slate-800">
+          {/* Sender Info & Mute Button */}
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="p-2 rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/80 dark:text-blue-400 shrink-0">
+              <UserCheck className="w-4 h-4" />
             </div>
-            <div>
-              <span className="text-xl sm:text-2xl font-black font-mono tracking-tight text-slate-900 dark:text-white">
-                {order.bed_number}
-              </span>
-              <div className="text-[11px] font-medium text-slate-400 flex items-center gap-1">
-                <Clock className="w-3 h-3" />
-                <span>{timeAgo(order.timestamp)}</span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium">
+                <span className="uppercase tracking-wider font-semibold">Sender</span>
+                <span>•</span>
+                <span className="flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  {timeAgo(order.timestamp)}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white truncate">
+                  {order.ordered_by || 'Telegram Sender'}
+                </span>
+                {onToggleBlockSender && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleBlockSender(order.ordered_by || 'Telegram Sender');
+                    }}
+                    className={`px-2 py-0.5 rounded-lg text-[11px] font-extrabold flex items-center gap-1 transition-all shrink-0 ${
+                      isBlockedSender
+                        ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
+                        : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200 hover:text-rose-600 dark:hover:text-rose-400 border border-slate-200 dark:border-slate-700 shadow-2xs'
+                    }`}
+                    title={
+                      isBlockedSender
+                        ? `Unmute messages from ${order.ordered_by || 'Telegram Sender'}`
+                        : `Mute all future messages from ${order.ordered_by || 'Telegram Sender'}`
+                    }
+                  >
+                    {isBlockedSender ? (
+                      <>
+                        <VolumeX className="w-3 h-3 text-rose-500" />
+                        <span>Muted</span>
+                      </>
+                    ) : (
+                      <>
+                        <UserX className="w-3 h-3 text-slate-500 dark:text-slate-400" />
+                        <span>Mute</span>
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleCopyTile}
-              className={`p-1.5 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs ${
-                copied
-                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
-              }`}
-              title="Copy formatted progress or completed tile for clinical handovers"
-            >
-              {copied ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span>Copied!</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
-                  <span>Copy Tile</span>
-                </>
-              )}
-            </button>
+          {/* Status Badge at Top Right */}
+          <div className="flex items-center shrink-0 ml-auto">
             {getStatusBadge()}
           </div>
         </div>
 
-        {/* Single Out Sender Banner with Mute option */}
-        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 mb-3.5 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="p-1.5 rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 shrink-0">
-              <UserCheck className="w-4 h-4" />
-            </div>
-            <div className="min-w-0">
-              <span className="text-[11px] font-semibold text-slate-400 block uppercase tracking-wider">Sender</span>
-              <span className="text-sm font-bold text-slate-900 dark:text-white truncate block">
-                {order.ordered_by || 'Telegram Sender'}
-              </span>
-            </div>
-          </div>
-
-          {onToggleBlockSender && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleBlockSender(order.ordered_by || 'Telegram Sender');
-              }}
-              className={`px-2.5 py-1 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all shrink-0 ${
-                isBlockedSender
-                  ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
-                  : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:text-rose-600 dark:hover:text-rose-400 border border-slate-200 dark:border-slate-700 shadow-2xs'
-              }`}
-              title={
-                isBlockedSender
-                  ? `Unmute messages from ${order.ordered_by}`
-                  : `Mute all future messages from ${order.ordered_by}`
-              }
-            >
-              {isBlockedSender ? (
-                <>
-                  <VolumeX className="w-3.5 h-3.5 text-rose-500" />
-                  <span>Muted</span>
-                </>
-              ) : (
-                <>
-                  <UserX className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Mute Sender</span>
-                </>
-              )}
-            </button>
-          )}
-        </div>
-
-        {/* Message As Is Display */}
+        {/* Message Content As Received */}
         <div className="mb-4">
           <div className="p-3.5 rounded-xl bg-slate-900 text-slate-100 dark:bg-slate-950 dark:text-slate-100 border border-slate-800 shadow-xs">
             <div className="text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1">

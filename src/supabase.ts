@@ -3,12 +3,27 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 const SUPABASE_URL_KEY = 'clinical_supabase_url_v1';
 const SUPABASE_ANON_KEY = 'clinical_supabase_anon_v1';
 
-// Read from import.meta.env (Vite) with local override support
-const metaEnv = (import.meta as unknown as { env?: Record<string, string> }).env || {};
+// Read from import.meta.env (Vite) or process.env with local override support
+const metaEnv =
+  (typeof import.meta !== 'undefined' && (import.meta as unknown as { env?: Record<string, string> }).env) ||
+  (typeof process !== 'undefined' && process.env) ||
+  {};
+
+export function getEnvSupabaseConfig(): { url: string; key: string } {
+  const url = metaEnv.VITE_SUPABASE_URL || metaEnv.SUPABASE_URL || '';
+  const key =
+    metaEnv.VITE_SUPABASE_ANON_KEY ||
+    metaEnv.VITE_SUPABASE_KEY ||
+    metaEnv.SUPABASE_ANON_KEY ||
+    metaEnv.SUPABASE_KEY ||
+    '';
+  return { url: url.trim(), key: key.trim() };
+}
 
 export function getSupabaseConfig(): { url: string; key: string } {
-  let url = metaEnv.VITE_SUPABASE_URL || '';
-  let key = metaEnv.VITE_SUPABASE_ANON_KEY || metaEnv.VITE_SUPABASE_KEY || '';
+  const envConfig = getEnvSupabaseConfig();
+  let url = envConfig.url;
+  let key = envConfig.key;
 
   if (typeof window !== 'undefined') {
     const localUrl = localStorage.getItem(SUPABASE_URL_KEY);
@@ -18,6 +33,25 @@ export function getSupabaseConfig(): { url: string; key: string } {
   }
 
   return { url: url.trim(), key: key.trim() };
+}
+
+export function isUsingEnvDefaults(): { isEnvUrl: boolean; isEnvKey: boolean } {
+  if (typeof window === 'undefined') return { isEnvUrl: true, isEnvKey: true };
+  const envConfig = getEnvSupabaseConfig();
+  const localUrl = localStorage.getItem(SUPABASE_URL_KEY);
+  const localKey = localStorage.getItem(SUPABASE_ANON_KEY);
+
+  return {
+    isEnvUrl: Boolean(!localUrl && envConfig.url),
+    isEnvKey: Boolean(!localKey && envConfig.key),
+  };
+}
+
+export function clearLocalSupabaseConfig(): void {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(SUPABASE_URL_KEY);
+    localStorage.removeItem(SUPABASE_ANON_KEY);
+  }
 }
 
 export function saveSupabaseConfig(url: string, key: string): void {

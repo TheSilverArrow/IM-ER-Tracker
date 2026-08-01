@@ -8,9 +8,9 @@ import { PendingQueueTriage } from './components/PendingQueueTriage';
 import { BottomNav } from './components/BottomNav';
 import { NewOrderModal } from './components/NewOrderModal';
 import { WebhookSimulatorModal } from './components/WebhookSimulatorModal';
-import { WebhookDocsModal } from './components/WebhookDocsModal';
 import { ManageBlockedSendersModal } from './components/ManageBlockedSendersModal';
 import { SupabaseSettingsModal } from './components/SupabaseSettingsModal';
+import { SoundSelectorModal } from './components/SoundSelectorModal';
 import { orderService } from './services/orderService';
 import { subscribeToSupabaseRealtime, deleteSupabaseOrder } from './services/supabaseOrderService';
 import { getBlockedSenders, saveBlockedSenders, isSenderBlocked } from './services/senderService';
@@ -120,10 +120,10 @@ export default function App() {
   // Modals state
   const [isNewOrderOpen, setIsNewOrderOpen] = useState(false);
   const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
-  const [isWebhookDocsOpen, setIsWebhookDocsOpen] = useState(false);
   const [isManageSendersOpen, setIsManageSendersOpen] = useState(false);
   const [isSupabaseSettingsOpen, setIsSupabaseSettingsOpen] = useState(false);
-  const [mobileTab, setMobileTab] = useState<'dashboard' | 'simulator' | 'docs'>('dashboard');
+  const [isSoundSelectorOpen, setIsSoundSelectorOpen] = useState(false);
+  const [mobileTab, setMobileTab] = useState<'dashboard' | 'simulator'>('dashboard');
 
   // Filters State
   const [filters, setFilters] = useState<FilterState>({
@@ -341,12 +341,12 @@ export default function App() {
 
   // Handle delete
   const handleDeleteOrder = async (id: string) => {
+    setOrders((prev) => prev.filter((o) => o.id !== id));
+    triggerToast('Order tile removed');
     try {
       await orderService.deleteOrder(id);
-      setOrders((prev) => prev.filter((o) => o.id !== id));
     } catch (err: any) {
       console.error('Error deleting order:', err);
-      alert(`Could not delete order: ${err?.message || 'Unknown error'}`);
     }
   };
 
@@ -541,9 +541,9 @@ export default function App() {
       {/* Header */}
       <Header
         onOpenSimulator={() => setIsSimulatorOpen(true)}
-        onOpenWebhookDocs={() => setIsWebhookDocsOpen(true)}
         onOpenManageSenders={() => setIsManageSendersOpen(true)}
         onOpenSupabaseSettings={() => setIsSupabaseSettingsOpen(true)}
+        onOpenSoundSelector={() => setIsSoundSelectorOpen(true)}
         onRefresh={() => fetchOrders(true)}
         isRefreshing={isRefreshing}
         autoRefreshEnabled={autoRefreshEnabled}
@@ -555,7 +555,7 @@ export default function App() {
       {/* Main Content Layout */}
       <div className="flex-1 max-w-7xl w-full mx-auto">
         {/* Main Dashboard Panel */}
-        <main className="p-4 sm:p-6 min-w-0">
+        <main className="p-2.5 sm:p-6 min-w-0">
           {/* Compact Status Counter Bar */}
           <SummaryStatsWidget
             stats={summaryStats}
@@ -689,7 +689,6 @@ export default function App() {
       <BottomNav
         onOpenNewOrder={() => setIsNewOrderOpen(true)}
         onOpenSimulator={() => setIsSimulatorOpen(true)}
-        onOpenWebhookDocs={() => setIsWebhookDocsOpen(true)}
         onRefresh={() => fetchOrders(true)}
         isRefreshing={isRefreshing}
         activeTab={mobileTab}
@@ -710,11 +709,6 @@ export default function App() {
         onOrderSimulated={handleOrderSimulated}
       />
 
-      <WebhookDocsModal
-        isOpen={isWebhookDocsOpen}
-        onClose={() => setIsWebhookDocsOpen(false)}
-      />
-
       <ManageBlockedSendersModal
         isOpen={isManageSendersOpen}
         onClose={() => setIsManageSendersOpen(false)}
@@ -729,6 +723,12 @@ export default function App() {
         isOpen={isSupabaseSettingsOpen}
         onClose={() => setIsSupabaseSettingsOpen(false)}
         onConnected={() => fetchOrders(true)}
+      />
+
+      <SoundSelectorModal
+        isOpen={isSoundSelectorOpen}
+        onClose={() => setIsSoundSelectorOpen(false)}
+        onSoundChange={() => triggerToast('Saved new STAT alarm sound setting')}
       />
     </div>
   );

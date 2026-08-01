@@ -18,12 +18,6 @@ export function parseSupabaseRow(row: any): ClinicalOrder {
         is_completed: Boolean(it.is_completed || it.completed),
       };
     });
-  } else if (parsed.items.length > 0) {
-    items = parsed.items.map((itemText, idx) => ({
-      id: `it-${row.id || 'sb'}-${idx}`,
-      item_text: itemText,
-      is_completed: false,
-    }));
   }
 
   const createdAtNum = row.created_at
@@ -49,12 +43,7 @@ export function parseSupabaseRow(row: any): ClinicalOrder {
     status = row.status as OrderStatus;
   }
 
-  const rawPatientName = row.patient_name;
-  const isPlaceholderName =
-    !rawPatientName ||
-    rawPatientName === 'Raw Pending Message' ||
-    rawPatientName === 'Patient Unassigned';
-  const patient_name = isPlaceholderName ? parsed.patient_name : rawPatientName;
+  const patient_name = row.patient_name || rawText || 'STAT Message';
 
   const rawBed = row.bed_number;
   const bed_number =
@@ -231,8 +220,15 @@ export async function deleteSupabaseOrder(id: string): Promise<boolean> {
   const client = getSupabaseClient();
   if (!client) return false;
 
+  const isNumericStr = /^\d+$/.test(String(id));
+  const numericId = isNumericStr ? parseInt(String(id), 10) : null;
+
   try {
-    const { error } = await client.from('orders').delete().eq('id', id);
+    let { error } = await client.from('orders').delete().eq('id', id);
+    if (error && numericId !== null) {
+      const res = await client.from('orders').delete().eq('id', numericId);
+      if (!res.error) error = null;
+    }
     if (error) {
       console.warn('Supabase delete order error:', error.message);
       return false;

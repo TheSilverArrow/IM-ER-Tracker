@@ -1,21 +1,19 @@
 import React from 'react';
-import { LayoutDashboard, Bot, Plus, Code2, RefreshCw } from 'lucide-react';
+import { LayoutDashboard, Bot, Plus, RefreshCw } from 'lucide-react';
 
 interface Props {
   onOpenNewOrder: () => void;
   onOpenSimulator: () => void;
-  onOpenWebhookDocs: () => void;
   onRefresh: () => void;
   isRefreshing: boolean;
-  activeTab: 'dashboard' | 'simulator' | 'docs';
-  setActiveTab: (tab: 'dashboard' | 'simulator' | 'docs') => void;
+  activeTab: 'dashboard' | 'simulator';
+  setActiveTab: (tab: 'dashboard' | 'simulator') => void;
   pendingCount: number;
 }
 
 export const BottomNav: React.FC<Props> = ({
   onOpenNewOrder,
   onOpenSimulator,
-  onOpenWebhookDocs,
   onRefresh,
   isRefreshing,
   activeTab,
@@ -82,22 +80,6 @@ export const BottomNav: React.FC<Props> = ({
           >
             <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin text-blue-500' : ''}`} />
             <span className="mt-1 text-[10px]">Sync</span>
-          </button>
-
-          {/* Webhook API Docs Tab */}
-          <button
-            onClick={() => {
-              setActiveTab('docs');
-              onOpenWebhookDocs();
-            }}
-            className={`flex flex-col items-center justify-center p-1.5 rounded-xl text-xs font-semibold transition-colors ${
-              activeTab === 'docs'
-                ? 'text-slate-900 dark:text-white'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800'
-            }`}
-          >
-            <Code2 className="w-5 h-5" />
-            <span className="mt-1 text-[10px]">API Endpoint</span>
           </button>
         </div>
       </nav>
