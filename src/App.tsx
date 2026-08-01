@@ -11,7 +11,6 @@ import { WebhookSimulatorModal } from './components/WebhookSimulatorModal';
 import { ManageBlockedSendersModal } from './components/ManageBlockedSendersModal';
 import { SupabaseSettingsModal } from './components/SupabaseSettingsModal';
 import { SoundSelectorModal } from './components/SoundSelectorModal';
-import { AndroidAppModal } from './components/AndroidAppModal';
 import { orderService } from './services/orderService';
 import { subscribeToSupabaseRealtime, deleteSupabaseOrder } from './services/supabaseOrderService';
 import {
@@ -25,7 +24,6 @@ import {
 } from './services/senderService';
 import { playStatAlarmSound } from './utils/statSound';
 import { isStatMessage } from './utils/statFilter';
-import { sendBackgroundStatNotification } from './utils/wakeLock';
 import { ClipboardCheck, RefreshCw, AlertCircle, Sparkles, Filter, Bed, BellRing, ShieldAlert, Trash2 } from 'lucide-react';
 
 // Known raw/unparsed placeholder strings that should never overwrite parsed clinical data
@@ -133,7 +131,6 @@ export default function App() {
   const [isManageSendersOpen, setIsManageSendersOpen] = useState(false);
   const [isSupabaseSettingsOpen, setIsSupabaseSettingsOpen] = useState(false);
   const [isSoundSelectorOpen, setIsSoundSelectorOpen] = useState(false);
-  const [isAndroidAppOpen, setIsAndroidAppOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<'dashboard' | 'simulator'>('dashboard');
 
   // Filters State
@@ -251,13 +248,8 @@ export default function App() {
           return;
         }
 
-        // STAT message received! Play STAT alarm sound & trigger background lock-screen notification
+        // STAT message received! Play STAT alarm sound
         playStatAlarmSound();
-        sendBackgroundStatNotification(
-          newOrder.patient_name || newOrder.bed_number || 'Patient',
-          newOrder.bed_number || 'STAT Order',
-          newOrder.items?.[0]?.item_text || newOrder.raw_text || 'STAT Alert Received'
-        );
 
         setOrders((prev) => {
           if (prev.some((o) => o.id === newOrder.id)) return prev;
@@ -580,7 +572,6 @@ export default function App() {
         onOpenManageSenders={() => setIsManageSendersOpen(true)}
         onOpenSupabaseSettings={() => setIsSupabaseSettingsOpen(true)}
         onOpenSoundSelector={() => setIsSoundSelectorOpen(true)}
-        onOpenAndroidAppModal={() => setIsAndroidAppOpen(true)}
         onRefresh={() => fetchOrders(true)}
         isRefreshing={isRefreshing}
         autoRefreshEnabled={autoRefreshEnabled}
@@ -766,12 +757,6 @@ export default function App() {
         isOpen={isSoundSelectorOpen}
         onClose={() => setIsSoundSelectorOpen(false)}
         onSoundChange={() => triggerToast('Saved new STAT alarm sound setting')}
-        onOpenAndroidAppModal={() => setIsAndroidAppOpen(true)}
-      />
-
-      <AndroidAppModal
-        isOpen={isAndroidAppOpen}
-        onClose={() => setIsAndroidAppOpen(false)}
       />
     </div>
   );

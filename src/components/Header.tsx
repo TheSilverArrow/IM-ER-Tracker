@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Siren, Bot, RefreshCw, UserX, ChevronDown, Wrench, Database, BellRing, Volume2, Smartphone } from 'lucide-react';
+import { Siren, Bot, RefreshCw, UserX, ChevronDown, Wrench, Database, BellRing, Volume2 } from 'lucide-react';
 
 interface Props {
   onOpenNewOrder?: () => void;
@@ -13,7 +13,6 @@ interface Props {
   blockedSendersCount?: number;
   onTestStatSound?: () => void;
   onOpenSoundSelector?: () => void;
-  onOpenAndroidAppModal?: () => void;
 }
 
 export const Header: React.FC<Props> = ({
@@ -27,7 +26,6 @@ export const Header: React.FC<Props> = ({
   blockedSendersCount = 0,
   onTestStatSound,
   onOpenSoundSelector,
-  onOpenAndroidAppModal,
 }) => {
   const [isToolsDropdownOpen, setIsToolsDropdownOpen] = useState(false);
 
@@ -59,18 +57,6 @@ export const Header: React.FC<Props> = ({
 
         {/* Action Controls Header */}
         <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-          {onOpenAndroidAppModal && (
-            <button
-              onClick={onOpenAndroidAppModal}
-              className="flex items-center gap-1 sm:gap-1.5 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all active:scale-95"
-              title="Android App & Lock Screen Settings"
-            >
-              <Smartphone className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="hidden md:inline">Android App</span>
-              <span className="md:hidden">Android</span>
-            </button>
-          )}
-
           <div className="flex items-center rounded-lg sm:rounded-xl bg-rose-600 p-0.5 shadow-xs text-white">
             {onTestStatSound && (
               <button
@@ -142,16 +128,6 @@ export const Header: React.FC<Props> = ({
                 className="absolute right-0 mt-2 w-56 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl py-2 z-50 animate-fadeIn text-slate-800 dark:text-slate-200"
                 onClick={() => setIsToolsDropdownOpen(false)}
               >
-                {onOpenAndroidAppModal && (
-                  <button
-                    onClick={onOpenAndroidAppModal}
-                    className="w-full flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left border-b border-slate-100 dark:border-slate-800"
-                  >
-                    <Smartphone className="w-4 h-4 text-emerald-500" />
-                    <span>Android App & Lock Screen</span>
-                  </button>
-                )}
-
                 {onOpenSoundSelector && (
                   <button
                     onClick={onOpenSoundSelector}
