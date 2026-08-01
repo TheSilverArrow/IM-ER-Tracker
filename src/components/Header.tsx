@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Siren, Bot, RefreshCw, UserX, ChevronDown, Wrench, Database, BellRing, Volume2 } from 'lucide-react';
+import { Siren, Bot, RefreshCw, UserX, ChevronDown, Wrench, Database, BellRing, Volume2, Smartphone } from 'lucide-react';
 
 interface Props {
   onOpenNewOrder?: () => void;
@@ -13,6 +13,7 @@ interface Props {
   blockedSendersCount?: number;
   onTestStatSound?: () => void;
   onOpenSoundSelector?: () => void;
+  onOpenPwaNotifications?: () => void;
 }
 
 export const Header: React.FC<Props> = ({
@@ -26,6 +27,7 @@ export const Header: React.FC<Props> = ({
   blockedSendersCount = 0,
   onTestStatSound,
   onOpenSoundSelector,
+  onOpenPwaNotifications,
 }) => {
   const [isToolsDropdownOpen, setIsToolsDropdownOpen] = useState(false);
 
@@ -128,6 +130,16 @@ export const Header: React.FC<Props> = ({
                 className="absolute right-0 mt-2 w-56 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl py-2 z-50 animate-fadeIn text-slate-800 dark:text-slate-200"
                 onClick={() => setIsToolsDropdownOpen(false)}
               >
+                {onOpenPwaNotifications && (
+                  <button
+                    onClick={onOpenPwaNotifications}
+                    className="w-full flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left border-b border-slate-100 dark:border-slate-800 text-rose-600 dark:text-rose-400"
+                  >
+                    <Smartphone className="w-4 h-4 text-rose-500" />
+                    <span>PWA & Lockscreen Settings</span>
+                  </button>
+                )}
+
                 {onOpenSoundSelector && (
                   <button
                     onClick={onOpenSoundSelector}

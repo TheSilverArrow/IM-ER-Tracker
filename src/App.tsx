@@ -11,8 +11,10 @@ import { WebhookSimulatorModal } from './components/WebhookSimulatorModal';
 import { ManageBlockedSendersModal } from './components/ManageBlockedSendersModal';
 import { SupabaseSettingsModal } from './components/SupabaseSettingsModal';
 import { SoundSelectorModal } from './components/SoundSelectorModal';
+import { PwaNotificationModal } from './components/PwaNotificationModal';
 import { orderService } from './services/orderService';
 import { subscribeToSupabaseRealtime, deleteSupabaseOrder } from './services/supabaseOrderService';
+import { registerServiceWorker } from './utils/notifications';
 import {
   getBlockedSenders,
   saveBlockedSenders,
@@ -131,6 +133,7 @@ export default function App() {
   const [isManageSendersOpen, setIsManageSendersOpen] = useState(false);
   const [isSupabaseSettingsOpen, setIsSupabaseSettingsOpen] = useState(false);
   const [isSoundSelectorOpen, setIsSoundSelectorOpen] = useState(false);
+  const [isPwaModalOpen, setIsPwaModalOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<'dashboard' | 'simulator'>('dashboard');
 
   // Filters State
@@ -219,6 +222,9 @@ export default function App() {
 
   // Initial load & Supabase Real-time listener
   useEffect(() => {
+    // Register Service Worker for PWA notifications
+    registerServiceWorker().catch(() => {});
+
     // Sync muted senders from Supabase DB on load & subscribe to realtime muted updates
     fetchSupabaseMutedSenders().then((remoteSenders) => {
       if (remoteSenders && remoteSenders.length > 0) {
@@ -572,6 +578,7 @@ export default function App() {
         onOpenManageSenders={() => setIsManageSendersOpen(true)}
         onOpenSupabaseSettings={() => setIsSupabaseSettingsOpen(true)}
         onOpenSoundSelector={() => setIsSoundSelectorOpen(true)}
+        onOpenPwaNotifications={() => setIsPwaModalOpen(true)}
         onRefresh={() => fetchOrders(true)}
         isRefreshing={isRefreshing}
         autoRefreshEnabled={autoRefreshEnabled}
@@ -757,6 +764,12 @@ export default function App() {
         isOpen={isSoundSelectorOpen}
         onClose={() => setIsSoundSelectorOpen(false)}
         onSoundChange={() => triggerToast('Saved new STAT alarm sound setting')}
+        onOpenPwaNotifications={() => setIsPwaModalOpen(true)}
+      />
+
+      <PwaNotificationModal
+        isOpen={isPwaModalOpen}
+        onClose={() => setIsPwaModalOpen(false)}
       />
     </div>
   );

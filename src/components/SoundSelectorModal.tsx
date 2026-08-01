@@ -16,6 +16,8 @@ import {
   Trash2,
   AlertCircle,
   FileAudio,
+  Smartphone,
+  ChevronRight,
 } from 'lucide-react';
 import {
   STAT_SOUND_PRESETS,
@@ -35,9 +37,10 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   onSoundChange?: (newSoundId: string) => void;
+  onOpenPwaNotifications?: () => void;
 }
 
-export const SoundSelectorModal: React.FC<Props> = ({ isOpen, onClose, onSoundChange }) => {
+export const SoundSelectorModal: React.FC<Props> = ({ isOpen, onClose, onSoundChange, onOpenPwaNotifications }) => {
   const [activeSoundId, setActiveSoundId] = useState<string>(() => getSelectedSoundId());
   const [volume, setVolume] = useState<number>(() => getSoundVolume());
   const [loops, setLoops] = useState<number>(() => getSoundLoops());
@@ -212,6 +215,32 @@ export const SoundSelectorModal: React.FC<Props> = ({ isOpen, onClose, onSoundCh
               <span>Test Alarm</span>
             </button>
           </div>
+
+          {/* PWA & Mobile Lockscreen Notification Help Banner */}
+          {onOpenPwaNotifications && (
+            <div className="px-3 sm:px-6 py-2.5 bg-indigo-50/80 dark:bg-indigo-950/30 border-b border-indigo-100 dark:border-indigo-900/50 flex items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-2 text-indigo-900 dark:text-indigo-200">
+                <Smartphone className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                <div className="text-[11px] sm:text-xs">
+                  <span className="font-bold">Can&apos;t see PWA in Phone Notification Settings?</span>
+                  <span className="hidden sm:inline text-indigo-700 dark:text-indigo-300 ml-1">
+                    Request permission &amp; add to Home Screen.
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenPwaNotifications();
+                }}
+                className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] sm:text-xs flex items-center gap-1 shrink-0 transition-all"
+              >
+                <span>Enable PWA Alerts</span>
+                <ChevronRight className="w-3 h-3" />
+              </button>
+            </div>
+          )}
 
           {/* Global Controls Section (Volume & Duration Changer) */}
           <div className="p-3 sm:p-6 bg-slate-50/60 dark:bg-slate-800/30 grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-4">
