@@ -3,12 +3,13 @@
   "name": "STAT Medical Order Alarm & Monitor",
   "icons": [
     {
-      "src": "/siren.svg",
+      "src": "siren.svg",
       "type": "image/svg+xml",
       "sizes": "192x192 512x512"
     }
   ],
-  "start_url": "/",
+  "start_url": "./",
+  "scope": "./",
   "background_color": "#0f172a",
   "theme_color": "#e11d48",
   "display": "standalone",

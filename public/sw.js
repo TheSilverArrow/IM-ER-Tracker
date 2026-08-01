@@ -19,10 +19,10 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: data.body || 'New STAT Order Requires Immediate Attention!',
-    icon: '/siren.svg',
-    badge: '/siren.svg',
+    icon: 'siren.svg',
+    badge: 'siren.svg',
     vibrate: [300, 100, 300, 100, 300],
-    data: data.url || '/',
+    data: data.url || './',
     requireInteraction: true,
     tag: 'stat-alert',
     renotify: true,
@@ -41,7 +41,7 @@ self.addEventListener('notificationclick', (event) => {
         }
       }
       if (clients.openWindow) {
-        return clients.openWindow(event.notification.data || '/');
+        return clients.openWindow(event.notification.data || './');
       }
     })
   );

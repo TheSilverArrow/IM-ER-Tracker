@@ -14,7 +14,7 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
     return null;
   }
   try {
-    const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    const reg = await navigator.serviceWorker.register('./sw.js');
     swRegistration = reg;
     console.log('Service Worker registered successfully:', reg);
     return reg;
@@ -97,8 +97,8 @@ export async function sendSystemNotification(
 
     if (swRegistration && 'showNotification' in swRegistration) {
       await swRegistration.showNotification(title, {
-        icon: '/siren.svg',
-        badge: '/siren.svg',
+        icon: 'siren.svg',
+        badge: 'siren.svg',
         vibrate: [300, 100, 300, 100, 300],
         requireInteraction: true,
         tag: options?.tag || 'stat-alert',
